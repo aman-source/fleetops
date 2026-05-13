@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Docker volumes (local)
+postgres_data/
+redis_data/
+minio_data/
+
+# Coverage
+coverage/
+
+# OS
+*.swp
+*.swo
+*~
