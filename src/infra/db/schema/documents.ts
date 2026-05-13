@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, date, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
-import { organizations } from './organizations.js';
+import { organizations } from './organizations';
 
 export const DOCUMENT_ENTITY_TYPES = ['vehicle', 'driver'] as const;
 export type DocumentEntityType = (typeof DOCUMENT_ENTITY_TYPES)[number];

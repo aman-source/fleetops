@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, date, numeric, timestamp } from 'drizzle-orm/pg-core';
-import { organizations } from './organizations.js';
+import { organizations } from './organizations';
 
 export const DRIVER_STATUSES = ['active', 'inactive', 'suspended'] as const;
 export type DriverStatus = (typeof DRIVER_STATUSES)[number];

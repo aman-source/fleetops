@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, numeric, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
-import { organizations } from './organizations.js';
+import { organizations } from './organizations';
 
 export const EVENT_TYPES = [
   'overspeed', 'harsh_braking', 'harsh_accel', 'idle',

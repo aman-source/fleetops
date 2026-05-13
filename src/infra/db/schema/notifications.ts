@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, boolean, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
-import { users } from './users.js';
+import { users } from './users';
 
 export const NOTIFICATION_CHANNELS = ['email', 'sms', 'whatsapp', 'push', 'inapp'] as const;
 export const NOTIFICATION_STATUSES = ['pending', 'sent', 'delivered', 'failed'] as const;

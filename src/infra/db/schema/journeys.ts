@@ -1,8 +1,8 @@
 import { pgTable, uuid, text, numeric, integer, timestamp, index } from 'drizzle-orm/pg-core';
-import { vehicles } from './vehicles.js';
-import { drivers } from './drivers.js';
-import { users } from './users.js';
-import { organizations } from './organizations.js';
+import { vehicles } from './vehicles';
+import { drivers } from './drivers';
+import { users } from './users';
+import { organizations } from './organizations';
 
 export const JOURNEY_STATUSES = [
   'draft', 'pending_approval', 'approved', 'active',

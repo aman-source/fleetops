@@ -1,10 +1,10 @@
 import { pgTable, uuid, text, integer, numeric, timestamp, index } from 'drizzle-orm/pg-core';
-import { vehicles } from './vehicles.js';
-import { drivers } from './drivers.js';
-import { journeys } from './journeys.js';
-import { events } from './events.js';
-import { users } from './users.js';
-import { organizations } from './organizations.js';
+import { vehicles } from './vehicles';
+import { drivers } from './drivers';
+import { journeys } from './journeys';
+import { events } from './events';
+import { users } from './users';
+import { organizations } from './organizations';
 
 export const INCIDENT_STATUSES = ['active', 'responding', 'escalated', 'closed'] as const;
 export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];

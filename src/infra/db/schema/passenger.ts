@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
-import { users } from './users.js';
-import { organizations } from './organizations.js';
-import { journeys } from './journeys.js';
+import { users } from './users';
+import { organizations } from './organizations';
+import { journeys } from './journeys';
 
 export const REQUEST_STATUSES = ['pending', 'pooled', 'assigned', 'approved', 'rejected', 'cancelled'] as const;
 export const TRIP_TYPES = ['one_way', 'round_trip', 'recurring'] as const;

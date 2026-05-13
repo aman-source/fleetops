@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, integer, timestamp } from 'drizzle-orm/pg-core';
-import { vehicles } from './vehicles.js';
-import { organizations } from './organizations.js';
+import { vehicles } from './vehicles';
+import { organizations } from './organizations';
 
 export const DEVICE_TYPES = ['ivms', 'nfc_reader', 'passenger_counter', 'dashcam', 'panic_button'] as const;
 export type DeviceType = (typeof DEVICE_TYPES)[number];

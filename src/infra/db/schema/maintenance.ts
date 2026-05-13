@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, numeric, boolean, date, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
-import { vehicles } from './vehicles.js';
-import { users } from './users.js';
-import { organizations } from './organizations.js';
+import { vehicles } from './vehicles';
+import { users } from './users';
+import { organizations } from './organizations';
 
 export const WO_ISSUE_TYPES = [
   'preventive', 'corrective', 'breakdown', 'accident',

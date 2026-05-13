@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, integer, timestamp, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { organizations } from './organizations.js';
+import { organizations } from './organizations';
 
 export const VEHICLE_STATUSES = [
   'available',

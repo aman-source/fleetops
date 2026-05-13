@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, boolean, timestamp } from 'drizzle-orm/pg-core';
-import { organizations } from './organizations.js';
-import { roles } from './roles.js';
+import { organizations } from './organizations';
+import { roles } from './roles';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
