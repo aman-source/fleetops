@@ -23,12 +23,12 @@
   --line-soft: #ece7d8;
   --line-strong: #cdc4ad;
 
-  /* Text */
-  --ink-0: #15181d;
-  --ink-1: #2a2f37;
-  --ink-2: #5e6776;
-  --ink-3: #8a8270;
-  --ink-4: #cdc4ad;
+  /* Text — darkened for readability on cream */
+  --ink-0: #0d0f13;
+  --ink-1: #1a1e25;
+  --ink-2: #3d4555;
+  --ink-3: #5c5a4e;
+  --ink-4: #a39d8a;
 
   /* Brand — Desert palette (terracotta) */
   --primary: #d97757;

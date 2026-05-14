@@ -1,8 +1,10 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useLayout } from '@/stores/layout';
 
 interface Vehicle {
   vehicleId: string;
@@ -32,6 +34,23 @@ function vehicleIcon(online: boolean) {
 // Oman center — Marmul area
 const OMAN_CENTER: [number, number] = [18.13, 55.20];
 
+// Invalidate map size when sidebar or right panel toggles
+function MapResizer() {
+  const map = useMap();
+  const sidebarOpen = useLayout((s) => s.sidebarOpen);
+  const rightPanelOpen = useLayout((s) => s.rightPanelOpen);
+
+  useEffect(() => {
+    // Fire multiple times to catch CSS transition
+    const t1 = setTimeout(() => map.invalidateSize(), 50);
+    const t2 = setTimeout(() => map.invalidateSize(), 250);
+    const t3 = setTimeout(() => map.invalidateSize(), 500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [map, sidebarOpen, rightPanelOpen]);
+
+  return null;
+}
+
 export default function FleetMap({ vehicles }: { vehicles: Vehicle[] }) {
   return (
     <MapContainer
@@ -40,13 +59,14 @@ export default function FleetMap({ vehicles }: { vehicles: Vehicle[] }) {
       className="h-full w-full"
       zoomControl={false}
     >
+      <MapResizer />
       {/* CartoDB Voyager — light tiles matching editorial mood */}
       <TileLayer
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
 
-      {vehicles.map((v) => (
+      {vehicles.filter((v) => v.lat && v.lon).map((v) => (
         <Marker
           key={v.vehicleId}
           position={[v.lat, v.lon]}
@@ -54,11 +74,11 @@ export default function FleetMap({ vehicles }: { vehicles: Vehicle[] }) {
         >
           <Popup>
             <div className="text-[12px]">
-              <strong>{v.vehicleId.slice(0, 8)}</strong>
+              <strong>{v.vehicleId?.slice(0, 8) ?? '—'}</strong>
               <br />
-              Speed: {v.speed.toFixed(0)} km/h
+              Speed: {(v.speed ?? 0).toFixed(0)} km/h
               <br />
-              Status: {v.status}
+              Status: {v.status ?? 'unknown'}
               <br />
               Ignition: {v.ignition ? 'ON' : 'OFF'}
             </div>
