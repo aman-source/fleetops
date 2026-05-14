@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
-import { Header } from '@/components/layout/header';
+import { Topbar } from '@/components/layout/topbar';
 
 interface Workflow {
   id: string;
@@ -20,7 +20,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <Header title="Admin Configuration" />
+      <Topbar title="Admin Configuration" subtitle="WORKFLOWS · SETTINGS" />
       <div className="flex-1 overflow-auto p-4">
         <h2 className="text-ink-0 text-[14px] font-semibold mb-4">Workflow Engine</h2>
         <div className="bg-panel border border-line rounded-[10px] overflow-hidden">

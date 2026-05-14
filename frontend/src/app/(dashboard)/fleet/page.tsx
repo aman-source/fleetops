@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
-import { Header } from '@/components/layout/header';
+import { Topbar } from '@/components/layout/topbar';
 
 interface Vehicle {
   id: string;
@@ -47,7 +47,7 @@ export default function FleetPage() {
 
   return (
     <>
-      <Header title="Fleet — Vehicle Master" />
+      <Topbar title="Fleet — Vehicle Master" subtitle="VEHICLES · DRIVERS · DEVICES" />
       <div className="flex-1 overflow-auto p-4">
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-4">

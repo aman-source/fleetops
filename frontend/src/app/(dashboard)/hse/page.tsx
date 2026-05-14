@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
-import { Header } from '@/components/layout/header';
+import { Topbar } from '@/components/layout/topbar';
 
 interface Incident {
   id: string;
@@ -36,7 +36,7 @@ export default function HSEPage() {
 
   return (
     <>
-      <Header title="HSE Console" />
+      <Topbar title="HSE Console" subtitle="INCIDENTS · EVENTS · DRIVER SCORES" />
       <div className="flex-1 overflow-auto p-4">
         <div className="flex items-center gap-3 mb-4">
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 px-3 bg-surface border border-line rounded-[6px] text-ink-0 text-[12px] outline-none">

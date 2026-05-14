@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
-import { Header } from '@/components/layout/header';
+import { Topbar } from '@/components/layout/topbar';
 
 interface PassengerRequest {
   id: string;
@@ -31,7 +31,7 @@ export default function PassengerPage() {
 
   return (
     <>
-      <Header title="Passenger Logistics" />
+      <Topbar title="Passenger Logistics" subtitle="REQUESTS · POOLING · BOARDING" />
       <div className="flex-1 overflow-auto p-4">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1" />

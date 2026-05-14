@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
-import { Header } from '@/components/layout/header';
+import { Topbar } from '@/components/layout/topbar';
 import { Combobox } from '@/components/ui/combobox';
 
 interface Journey { id: string; journeyNo: string; vehicleId: string; driverId: string; purpose: string | null; plannedDeparture: string; plannedArrival: string; riskLevel: string | null; status: string; }
@@ -30,7 +30,7 @@ export default function JourneysPage() {
 
   return (
     <>
-      <Header title="Journey Management" />
+      <Topbar title="Journey Management" subtitle="PLAN · APPROVE · MONITOR" />
       <div className="flex-1 overflow-auto p-4">
         <div className="flex items-center gap-3 mb-4">
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 px-3 bg-surface border border-line rounded-[6px] text-ink-0 text-[12px] outline-none">
