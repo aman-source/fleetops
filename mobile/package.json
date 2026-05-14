@@ -1,0 +1,43 @@
+{
+  "name": "@fleetops/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fleetops/shared": "workspace:*",
+    "@gorhom/bottom-sheet": "^5.1.2",
+    "@rnmapbox/maps": "^10.1.31",
+    "@tanstack/react-query": "^5.100.10",
+    "axios": "^1.16.1",
+    "expo": "~53.0.0",
+    "expo-camera": "~16.1.0",
+    "expo-font": "~13.3.0",
+    "expo-linking": "~7.1.0",
+    "expo-router": "~5.0.0",
+    "expo-sharing": "~13.1.0",
+    "expo-splash-screen": "~0.30.0",
+    "expo-status-bar": "~2.2.0",
+    "react": "19.0.0",
+    "react-native": "0.79.2",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-mmkv": "^3.2.0",
+    "react-native-reanimated": "~3.17.0",
+    "react-native-safe-area-context": "~5.4.0",
+    "react-native-screens": "~4.10.0",
+    "react-native-svg": "^15.11.2",
+    "zustand": "^5.0.13",
+    "zod": "^3.24.1",
+    "@react-native-community/netinfo": "^11.4.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

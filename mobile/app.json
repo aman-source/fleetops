@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Fleetops",
+    "slug": "fleetops",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "fleetops",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f6f4ee"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.artech.fleetops",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera needed for pre-trip inspection photos and QR code scanning.",
+        "NSLocationWhenInUseUsageDescription": "Location needed for trip tracking and boarding verification."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f6f4ee"
+      },
+      "package": "com.artech.fleetops",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Camera needed for pre-trip inspection photos and QR code scanning."
+        }
+      ]
+    ]
+  }
+}
