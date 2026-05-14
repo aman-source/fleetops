@@ -12,15 +12,15 @@ import { Pill } from '@/components/ui/pill';
 const FleetMap = dynamic(() => import('@/components/map/fleet-map'), { ssr: false });
 
 interface VehicleLive {
-  vehicleId: string; lat: number; lon: number; speed: number; heading: number;
+  vehicleId: string; plateNo?: string; lat: number; lon: number; speed: number; heading: number;
   ignition: boolean; status: string; lastSeen: string; online: boolean;
 }
 
 const KPIS = [
-  { label: 'ACTIVE', value: 47, sub: '+6 vs yest', spark: [22,28,30,27,35,40,47], color: 'var(--primary)' },
-  { label: 'GO', value: 218, sub: 'of 264 fleet', spark: [200,210,205,215,212,220,218], color: 'var(--go)' },
-  { label: 'NO-GO', value: 14, sub: '3 critical', spark: [8,10,12,11,13,15,14], color: 'var(--nogo)' },
-  { label: 'DEFECTS', value: 8, sub: '2 overdue', spark: [5,6,8,9,7,8,8], color: 'var(--cond)' },
+  { label: 'ACTIVE', value: 47, sub: '+6 vs yest', spark: [22, 28, 30, 27, 35, 40, 47], color: 'var(--primary)' },
+  { label: 'GO', value: 218, sub: 'of 264 fleet', spark: [200, 210, 205, 215, 212, 220, 218], color: 'var(--go)' },
+  { label: 'NO-GO', value: 14, sub: '3 critical', spark: [8, 10, 12, 11, 13, 15, 14], color: 'var(--nogo)' },
+  { label: 'DEFECTS', value: 8, sub: '2 overdue', spark: [5, 6, 8, 9, 7, 8, 8], color: 'var(--cond)' },
 ];
 
 const MOCK_EVENTS = [
@@ -40,6 +40,14 @@ const MOCK_JOURNEYS = [
 ];
 
 const SEV_DOT: Record<string, string> = { go: 'bg-[var(--go)]', cond: 'bg-[var(--cond)]', nogo: 'bg-[var(--nogo)]', info: 'bg-[var(--primary)]' };
+
+const LEGEND = [
+  { color: '#1ec991', label: 'GO / Online' },
+  { color: '#f5a524', label: 'Conditional' },
+  { color: '#ef4747', label: 'No-Go' },
+  { color: '#4a90ff', label: 'In Maintenance' },
+  { color: '#8a8270', label: 'Offline' },
+];
 
 export default function MapPage() {
   const [liveVehicles, setLiveVehicles] = useState<VehicleLive[]>([]);
@@ -73,27 +81,31 @@ export default function MapPage() {
     <div className="flex flex-col flex-1 min-h-0">
       {/* Topbar */}
       <div className="h-[52px] px-5 flex items-center border-b border-line bg-bg-1 shrink-0 gap-4">
-        <div className="flex flex-col">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-3">Control Tower</span>
+        </div>
+        <div className="flex flex-col ml-1">
           <span className="text-[14px] font-semibold text-ink-0">Live fleet map</span>
-          <span className="font-mono text-[10.5px] text-ink-3">OMAN \u00b7 MARMUL OPS \u00b7 {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
+          <span className="font-mono text-[10px] text-ink-3">OMAN \u00b7 MARMUL OPS \u00b7 {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-2 border border-line-soft">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--go)]" />
-          <span className="font-mono text-[10.5px] text-ink-2">LIVE \u00b7 {online || 248} devices online</span>
+          <span className="font-mono text-[10.5px] text-ink-2">LIVE \u00b7 {online || 248} online</span>
         </div>
-        <button className="h-7 px-2 flex items-center bg-bg-3 border border-line rounded-[6px] text-ink-1 hover:bg-bg-4 transition-colors">
+        <button className="h-7 w-7 flex items-center justify-center bg-bg-3 border border-line rounded-[6px] text-ink-1 hover:bg-bg-4 transition-colors">
           <Glyph k="bell" size={14} stroke={1.8} />
         </button>
-        <button className="h-7 px-3 flex items-center gap-1.5 bg-[var(--primary)] border border-[var(--primary)] rounded-[6px] text-white text-[12px] font-medium hover:bg-[var(--primary-2)] transition-colors">
+        <button className="h-7 px-3 flex items-center gap-1.5 bg-[var(--primary)] border border-[var(--primary)] rounded-[6px] text-white text-[12px] font-medium hover:brightness-110 transition-all">
           <Glyph k="plus" size={13} stroke={2} />New journey
         </button>
       </div>
 
       {/* KPI strip */}
-      <div className="flex gap-3 px-5 pt-3.5 shrink-0">
+      <div className="flex gap-3 px-4 pt-3 shrink-0">
         {KPIS.map(k => (
-          <div key={k.label} className="flex-1 bg-panel border border-line rounded-[10px] px-3.5 py-3">
+          <div key={k.label} className="flex-1 bg-panel border border-line rounded-[10px] px-3.5 py-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-[0.08em] text-ink-3 font-medium">{k.label}</span>
               <Spark values={k.spark} color={k.color} w={64} h={20} />
@@ -106,32 +118,62 @@ export default function MapPage() {
         ))}
       </div>
 
-      {/* Main grid: map + right panel */}
-      <div className="flex gap-3 p-3.5 flex-1 min-h-0">
+      {/* Main: map + right panel */}
+      <div className="flex gap-3 p-3 flex-1 min-h-0">
         {/* Map panel */}
-        <div className="flex-1 flex flex-col bg-panel border border-line rounded-[10px] overflow-hidden min-w-0">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-line shrink-0">
-            <div className="flex gap-0">
-              {['All fleet','Active journeys','No-Go','Geofences','Heat'].map(t => (
+        <div className="flex-1 flex flex-col bg-panel border border-line rounded-[10px] overflow-hidden min-w-0 relative">
+          {/* Map toolbar */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-line shrink-0 bg-bg-1/80 backdrop-blur-sm z-[1]">
+            <div className="flex gap-0.5">
+              {['All fleet', 'Active journeys', 'No-Go', 'Geofences', 'Heat'].map(t => (
                 <button key={t} onClick={() => setMapTab(t)}
-                  className={`text-[12px] px-2.5 py-1 rounded-full transition-colors ${mapTab === t ? 'bg-bg-3 text-ink-0' : 'text-ink-2 hover:text-ink-0'}`}>{t}</button>
+                  className={`text-[11.5px] px-2.5 py-1 rounded-full transition-colors ${mapTab === t ? 'bg-bg-3 text-ink-0 font-medium' : 'text-ink-2 hover:text-ink-0'}`}>{t}</button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] text-ink-3">PDO BLOCK 6 \u00b7 INTERIOR OMAN</span>
-              <button className="h-6 px-2 flex items-center gap-1 text-ink-2 hover:text-ink-0 text-[11px] transition-colors">
-                <Glyph k="filter" size={12} />Filters
+              <span className="font-mono text-[10px] text-ink-3">PDO BLOCK 6</span>
+              <button className="h-6 px-2 flex items-center gap-1 text-ink-2 hover:text-ink-0 text-[11px] bg-bg-2 border border-line rounded-[4px] transition-colors">
+                <Glyph k="filter" size={11} />Filters
               </button>
             </div>
           </div>
+
+          {/* Map */}
           <div className="flex-1 relative">
             <FleetMap vehicles={liveVehicles} />
+
+            {/* Legend overlay — bottom left */}
+            <div className="absolute bottom-3 left-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[8px] px-3 py-2 z-[400]">
+              <div className="text-[9px] uppercase tracking-[0.08em] text-ink-3 font-medium mb-1.5">Legend</div>
+              <div className="flex flex-col gap-1">
+                {LEGEND.map(l => (
+                  <div key={l.label} className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
+                    <span className="text-[10px] text-ink-2">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Scale widget — bottom right */}
+            <div className="absolute bottom-3 right-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[6px] px-2.5 py-1.5 z-[400]">
+              <div className="flex items-center gap-2">
+                <div className="w-[40px] h-px bg-ink-3" />
+                <span className="font-mono text-[9px] text-ink-3">50 km</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Right column */}
         {rightPanelOpen ? (
           <div className="flex flex-col gap-3 shrink-0" style={{ width: 340 }}>
+            {/* Collapse button */}
+            <button onClick={toggleRightPanel} className="flex items-center gap-1.5 text-ink-3 hover:text-ink-0 transition-colors self-end" title="Collapse panel">
+              <span className="text-[10px] font-mono">COLLAPSE</span>
+              <Glyph k="chevR" size={12} />
+            </button>
+
             {/* Event stream */}
             <div className="bg-panel border border-line rounded-[10px] flex flex-col">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line">
@@ -147,11 +189,11 @@ export default function MapPage() {
                     <span className={`w-1 self-stretch rounded-sm shrink-0 ${SEV_DOT[e.sev] || 'bg-ink-3'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] text-ink-0">{e.d}</span>
+                        <span className="font-mono text-[11px] text-ink-0 font-medium">{e.d}</span>
                         <span className="font-mono text-[10px] text-ink-3">{e.t}</span>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-px">
-                        <span className="text-[11.5px] text-ink-2 truncate">{e.m}</span>
+                        <span className="text-[11px] text-ink-2 truncate">{e.m}</span>
                         <span className="font-mono text-[10px] text-ink-3 shrink-0">{e.v}</span>
                       </div>
                     </div>
@@ -164,31 +206,36 @@ export default function MapPage() {
             <div className="bg-panel border border-line rounded-[10px] flex flex-col flex-1 min-h-0">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line">
                 <span className="text-[13px] font-semibold text-ink-0">Active journeys</span>
-                <div className="flex gap-1.5">
-                  <Glyph k="grid" size={12} className="text-ink-3" />
-                  <Glyph k="list" size={12} className="text-ink-0" />
-                </div>
+                <span className="font-mono text-[10px] text-ink-3">{MOCK_JOURNEYS.filter(j => j.status !== 'completed').length} in progress</span>
               </div>
-              <div className="flex flex-col overflow-hidden">
-                {MOCK_JOURNEYS.map((j, i) => (
-                  <div key={j.id} className="px-3 py-2.5 hover:bg-raised transition-colors cursor-pointer" style={{ borderBottom: i < MOCK_JOURNEYS.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[11px] text-ink-0">{j.id}</span>
-                      <Pill status={j.status} />
+              <div className="flex flex-col overflow-auto flex-1">
+                {MOCK_JOURNEYS.map((j, i) => {
+                  const riskColor = j.risk === 'H' ? 'var(--nogo)' : j.risk === 'M' ? 'var(--cond)' : 'var(--go)';
+                  return (
+                    <div key={j.id} className="px-3 py-2.5 hover:bg-raised transition-colors cursor-pointer" style={{ borderBottom: i < MOCK_JOURNEYS.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{j.id}</span>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-mono font-medium border" style={{ color: riskColor, borderColor: `${riskColor}40`, background: `${riskColor}15` }}>
+                            R:{j.risk}
+                          </span>
+                        </div>
+                        <Pill status={j.status} />
+                      </div>
+                      <div className="text-[12px] text-ink-1 mt-1">{j.dest}</div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="font-mono text-[10px] text-ink-3">{j.veh} \u00b7 {j.driver}</span>
+                        <span className="font-mono text-[10px] text-ink-2">ETA {j.eta}</span>
+                      </div>
+                      <div className="h-[3px] bg-bg-3 rounded-full mt-1.5 overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{
+                          width: j.prog + '%',
+                          background: j.status === 'deviated' ? 'var(--nogo)' : j.status === 'delayed' ? 'var(--cond)' : j.status === 'completed' ? 'var(--go)' : 'var(--primary)',
+                        }} />
+                      </div>
                     </div>
-                    <div className="text-[12px] text-ink-1 mt-1">{j.dest}</div>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="font-mono text-[10px] text-ink-3">{j.veh} \u00b7 {j.driver}</span>
-                      <span className="font-mono text-[10px] text-ink-2">ETA {j.eta}</span>
-                    </div>
-                    <div className="h-[3px] bg-bg-3 rounded-full mt-1.5 overflow-hidden">
-                      <div className="h-full rounded-full" style={{
-                        width: j.prog + '%',
-                        background: j.status === 'deviated' ? 'var(--nogo)' : j.status === 'delayed' ? 'var(--cond)' : j.status === 'completed' ? 'var(--go)' : 'var(--primary)',
-                      }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -196,7 +243,7 @@ export default function MapPage() {
           <button onClick={toggleRightPanel} className="w-[36px] shrink-0 bg-panel border border-line rounded-[10px] flex items-center justify-center text-ink-3 hover:text-ink-0 hover:bg-raised transition-colors" title="Show panel">
             <div className="flex flex-col items-center gap-2">
               <Glyph k="chevL" size={14} />
-              <span className="text-[10px] font-medium tracking-wider" style={{ writingMode: 'vertical-rl' as const }}>EVENTS</span>
+              <span className="text-[10px] font-medium tracking-wider" style={{ writingMode: 'vertical-rl' }}>EVENTS</span>
             </div>
           </button>
         )}
