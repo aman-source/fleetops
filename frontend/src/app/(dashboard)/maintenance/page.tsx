@@ -82,7 +82,7 @@ export default function MaintenancePage() {
               {isLoading && <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && workOrders?.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">No work orders found</td></tr>}
               {workOrders?.map((wo) => (
-                <tr key={wo.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={wo.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/maintenance/${wo.id}`}>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{wo.woNumber}</td>
                   <td className="px-3 py-2.5 text-ink-0">{wo.title}</td>
                   <td className="px-3 py-2.5 text-ink-1 capitalize">{wo.issueType.replace(/_/g, ' ')}</td>

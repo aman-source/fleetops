@@ -94,7 +94,7 @@ export default function FleetPage() {
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>
               )}
               {vehicles?.map((v) => (
-                <tr key={v.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={v.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/fleet/${v.id}`}>
                   <td className="px-3 py-2 text-ink-0 font-medium font-mono">{v.plateNo}</td>
                   <td className="px-3 py-2 text-ink-2">{v.fleetNo ?? '—'}</td>
                   <td className="px-3 py-2 text-ink-1">{v.make} {v.model}</td>

@@ -65,7 +65,7 @@ export default function HSEPage() {
               {isLoading && <tr><td colSpan={5} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && incidents?.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-ink-3">No incidents</td></tr>}
               {incidents?.map((i) => (
-                <tr key={i.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={i.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/hse/${i.id}`}>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{i.id.slice(0, 8)}</td>
                   <td className="px-3 py-2.5 text-ink-0">{i.situation ?? '\u2014'}</td>
                   <td className="px-3 py-2.5"><span className={`font-bold ${i.tier >= 2 ? 'text-[var(--nogo)]' : 'text-[var(--cond)]'}`}>T{i.tier}</span></td>
