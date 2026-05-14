@@ -60,7 +60,7 @@ export default function JourneysPage() {
               {isLoading && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && journeys?.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">No journeys found</td></tr>}
               {journeys?.map((j) => (
-                <tr key={j.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={j.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/journeys/${j.id}`}>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{j.journeyNo}</td>
                   <td className="px-3 py-2.5 text-ink-0">{j.purpose || '\u2014'}</td>
                   <td className="px-3 py-2.5 text-ink-1 font-mono text-[11px]">{new Date(j.plannedDeparture).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>

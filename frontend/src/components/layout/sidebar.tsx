@@ -4,18 +4,27 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/stores/auth';
 import { useLayout } from '@/stores/layout';
-import { MapPin, Route, Truck, Wrench, Shield, Users, BarChart, Settings, LogOut, PanelLeftClose, PanelLeftOpen } from '@/components/ui/icons';
-import type { ReactNode } from 'react';
+import { Glyph, Logo } from '@/components/ui/glyph';
 
-const NAV_ITEMS: { href: string; label: string; icon: ReactNode; permission: string | null }[] = [
-  { href: '/map', label: 'Control Tower', icon: <MapPin size={16} />, permission: null },
-  { href: '/journeys', label: 'Journeys', icon: <Route size={16} />, permission: 'journey:read' },
-  { href: '/fleet', label: 'Fleet', icon: <Truck size={16} />, permission: 'fleet:read' },
-  { href: '/maintenance', label: 'Maintenance', icon: <Wrench size={16} />, permission: 'maintenance:read' },
-  { href: '/hse', label: 'HSE', icon: <Shield size={16} />, permission: 'hse:read' },
-  { href: '/passenger', label: 'Passenger', icon: <Users size={16} />, permission: 'passenger:read' },
-  { href: '/analytics', label: 'Analytics', icon: <BarChart size={16} />, permission: 'analytics:read' },
-  { href: '/admin', label: 'Admin', icon: <Settings size={16} />, permission: '*' },
+const SECTIONS = [
+  { label: 'Operate', items: [
+    { k: 'map',   href: '/map',        icon: 'map',    t: 'Live fleet map' },
+    { k: 'jrny',  href: '/journeys',   icon: 'route',  t: 'Journeys',    perm: 'journey:read' },
+    { k: 'pass',  href: '/passenger',  icon: 'users',  t: 'Passengers',  perm: 'passenger:read' },
+  ]},
+  { label: 'Fleet', items: [
+    { k: 'veh',   href: '/fleet',       icon: 'truck',  t: 'Vehicles',    perm: 'fleet:read' },
+    { k: 'maint', href: '/maintenance', icon: 'wrench', t: 'Maintenance', perm: 'maintenance:read' },
+    { k: 'docs',  href: '/documents',   icon: 'doc',    t: 'Documents',   perm: 'documents:read' },
+  ]},
+  { label: 'Safety', items: [
+    { k: 'hse',   href: '/hse',    icon: 'shield', t: 'HSE console', perm: 'hse:read' },
+    { k: 'evnt',  href: '/events', icon: 'alert',  t: 'Events' },
+  ]},
+  { label: 'Insights', items: [
+    { k: 'rpt',   href: '/analytics', icon: 'chart', t: 'Reports',     perm: 'analytics:read' },
+    { k: 'admin', href: '/admin',     icon: 'cog',   t: 'Admin',       perm: '*' },
+  ]},
 ];
 
 export function Sidebar() {
@@ -23,64 +32,77 @@ export function Sidebar() {
   const { user, hasPermission, logout } = useAuth();
   const { sidebarOpen, toggleSidebar } = useLayout();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.permission || hasPermission(item.permission),
-  );
-
   return (
-    <aside className={`flex flex-col border-r border-line bg-panel h-screen shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-[200px]' : 'w-[52px]'}`}>
+    <aside className={`flex flex-col border-r border-line bg-bg-1 h-screen shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-[220px]' : 'w-[52px]'}`}
+      style={{ padding: sidebarOpen ? '14px 12px' : '14px 8px', gap: 16 }}>
+
       {/* Logo row */}
-      <div className={`border-b border-line flex items-center shrink-0 ${sidebarOpen ? 'px-3 py-3 justify-between' : 'p-2 justify-center'}`}>
-        {sidebarOpen && (
-          <div>
-            <div className="text-ink-0 font-semibold text-sm tracking-wide">FLEETOPS</div>
-            <div className="text-ink-3 text-[11px] mt-0.5">AR Technology</div>
-          </div>
+      <div className="flex items-center justify-between" style={{ padding: sidebarOpen ? '4px 8px 8px' : '4px 0 8px' }}>
+        {sidebarOpen ? <Logo size={20} /> : (
+          <button onClick={toggleSidebar} className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-bg-2 text-ink-2 hover:text-ink-0 transition-colors mx-auto">
+            <Glyph k="panelR" size={18} stroke={1.4} />
+          </button>
         )}
-        <button
-          onClick={toggleSidebar}
-          className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-raised text-ink-3 hover:text-ink-1 transition-colors shrink-0"
-          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-        </button>
+        {sidebarOpen && (
+          <button onClick={toggleSidebar} className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-bg-2 text-ink-3 hover:text-ink-0 transition-colors">
+            <Glyph k="panelL" size={14} stroke={1.4} />
+          </button>
+        )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 py-2 overflow-y-auto">
-        {visibleItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center py-2.5 text-[13px] transition-colors ${sidebarOpen ? 'px-4 gap-2.5' : 'px-0 justify-center'} ${isActive ? 'text-primary bg-primary-soft border-r-2 border-primary' : 'text-ink-2 hover:text-ink-1 hover:bg-raised'}`}
-              title={sidebarOpen ? undefined : item.label}
-            >
-              <span className="w-5 h-5 flex items-center justify-center shrink-0">{item.icon}</span>
-              {sidebarOpen && <span className="truncate">{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User */}
-      {user && (
-        <div className={`border-t border-line py-3 ${sidebarOpen ? 'px-4' : 'flex flex-col items-center px-1'}`}>
-          {sidebarOpen ? (
-            <>
-              <div className="text-ink-1 text-[12px] font-medium truncate">{user.name}</div>
-              <div className="text-ink-3 text-[11px] truncate capitalize">{user.role.replace(/_/g, ' ')}</div>
-              <button onClick={logout} className="mt-2 flex items-center gap-1.5 text-[11px] text-ink-3 hover:text-nogo transition-colors">
-                <LogOut size={12} /> Sign out
-              </button>
-            </>
-          ) : (
-            <button onClick={logout} className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-raised text-ink-3 hover:text-nogo transition-colors" title="Sign out">
-              <LogOut size={16} />
-            </button>
-          )}
+      {/* Search */}
+      {sidebarOpen && (
+        <div className="flex items-center gap-1.5 bg-bg-2 border border-line rounded-[6px] px-2 py-1.5 cursor-pointer hover:border-[var(--primary)] transition-colors">
+          <Glyph k="search" size={13} stroke={1.8} className="text-ink-3" />
+          <span className="text-[11.5px] text-ink-3 flex-1">Search fleet, journey\u2026</span>
+          <span className="font-mono text-[10px] px-1 py-px rounded bg-bg-3 text-ink-3">\u2318K</span>
         </div>
+      )}
+
+      {/* Nav sections */}
+      <div className="flex flex-col gap-4 flex-1 overflow-y-auto">
+        {SECTIONS.map(sec => (
+          <div key={sec.label} className="flex flex-col gap-0.5">
+            {sidebarOpen && (
+              <div className="text-[10px] uppercase tracking-[0.08em] text-ink-3 font-medium px-2 pb-1">{sec.label}</div>
+            )}
+            {sec.items.map(it => {
+              if (it.perm && !hasPermission(it.perm)) return null;
+              const isActive = pathname.startsWith(it.href);
+              return (
+                <Link key={it.k} href={it.href}
+                  className={`flex items-center gap-2.5 rounded-[6px] transition-colors ${sidebarOpen ? 'px-2.5 py-[7px]' : 'px-0 py-2 justify-center'} ${isActive ? 'bg-bg-3 text-ink-0' : 'text-ink-2 hover:bg-bg-2 hover:text-ink-0'}`}
+                  title={sidebarOpen ? undefined : it.t}>
+                  <Glyph k={it.icon} size={15} stroke={1.6} className="shrink-0" />
+                  {sidebarOpen && <span className="flex-1 text-[12.5px]">{it.t}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* User card */}
+      {user && sidebarOpen && (
+        <div className="flex items-center gap-2 p-2 rounded-[6px] bg-bg-2 mt-auto">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold font-mono shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--cyan, #38d4d4), var(--primary))' }}>
+            {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] text-ink-0 truncate">{user.name}</div>
+            <div className="font-mono text-[10px] text-ink-3 truncate capitalize">{user.role.replace(/_/g, ' ')}</div>
+          </div>
+          <button onClick={logout} title="Sign out" className="text-ink-3 hover:text-[var(--nogo)] transition-colors">
+            <Glyph k="chevD" size={14} />
+          </button>
+        </div>
+      )}
+      {user && !sidebarOpen && (
+        <button onClick={logout} title="Sign out"
+          className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-bg-2 text-ink-3 hover:text-[var(--nogo)] transition-colors mx-auto mt-auto">
+          <Glyph k="chevD" size={14} />
+        </button>
       )}
     </aside>
   );
