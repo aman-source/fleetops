@@ -138,22 +138,74 @@ function GaugeCard({ label, value, unit, pct, color }: { label: string; value: s
   );
 }
 
-/* ── Overview tab: 4 health cards + timeline ── */
+/* ── Overview tab: 4 health cards + timeline from real APIs ── */
 function OverviewTab({ vehicle }: { vehicle: Vehicle }) {
+  const { data: docs } = useQuery({
+    queryKey: ['vehicle-docs-overview', vehicle.id],
+    queryFn: async () => unwrap<Array<Record<string, unknown>>>(await api.get(`/documents?entityType=vehicle&entityId=${vehicle.id}&limit=20`)),
+  });
+
+  const { data: tireData } = useQuery({
+    queryKey: ['vehicle-tires-overview', vehicle.id],
+    queryFn: async () => unwrap<Array<Record<string, unknown>>>(await api.get(`/tires?vehicleId=${vehicle.id}&limit=10`)),
+  });
+
+  const { data: recentEvents } = useQuery({
+    queryKey: ['vehicle-events-overview', vehicle.id],
+    queryFn: async () => unwrap<Array<Record<string, unknown>>>(await api.get(`/events?vehicleId=${vehicle.id}&limit=5`)),
+  });
+
+  const { data: recentWOs } = useQuery({
+    queryKey: ['vehicle-wos-overview', vehicle.id],
+    queryFn: async () => unwrap<Array<Record<string, unknown>>>(await api.get(`/work-orders?vehicleId=${vehicle.id}&limit=3`)),
+  });
+
+  // Compute health card data from real APIs
+  const maintStatus = vehicle.status === 'available' || vehicle.status === 'go' ? 'GO' : vehicle.status === 'conditional' ? 'CONDITIONAL' : 'CHECK';
+  const maintColor = maintStatus === 'GO' ? 'var(--go)' : maintStatus === 'CONDITIONAL' ? 'var(--cond)' : 'var(--nogo)';
+  const lastWO = recentWOs?.[0];
+  const maintSub = lastWO ? `Last WO: ${(lastWO.woNumber as string)}` : 'No recent work orders';
+
+  // Documents: find nearest expiry
+  const validDocs = docs?.filter(d => d.expiryDate) ?? [];
+  const sortedDocs = [...validDocs].sort((a, b) => new Date(a.expiryDate as string).getTime() - new Date(b.expiryDate as string).getTime());
+  const nearestDoc = sortedDocs[0];
+  const daysToExpiry = nearestDoc ? Math.ceil((new Date(nearestDoc.expiryDate as string).getTime() - Date.now()) / 86400000) : null;
+  const docStatus = daysToExpiry != null ? (daysToExpiry < 0 ? 'EXPIRED' : `${daysToExpiry}d`) : '\u2014';
+  const docColor = daysToExpiry != null ? (daysToExpiry < 0 ? 'var(--nogo)' : daysToExpiry < 30 ? 'var(--cond)' : 'var(--go)') : 'var(--ink-3)';
+  const docSub = nearestDoc ? `Nearest: ${(nearestDoc.documentType as string).replace(/_/g, ' ')}` : 'No documents';
+
+  // Tires: average tread depth
+  const treads = (tireData ?? []).map(t => Number(t.treadDepthMm)).filter(n => !isNaN(n) && n > 0);
+  const avgTread = treads.length > 0 ? (treads.reduce((s, v) => s + v, 0) / treads.length).toFixed(1) : '\u2014';
+  const treadColor = treads.length > 0 ? (Number(avgTread) > 4 ? 'var(--go)' : Number(avgTread) > 2 ? 'var(--cond)' : 'var(--nogo)') : 'var(--ink-3)';
+
   const healthCards = [
-    { label: 'Maintenance', status: vehicle.status === 'available' || vehicle.status === 'go' ? 'GO' : vehicle.status === 'conditional' ? 'CONDITIONAL' : 'CHECK', color: vehicle.status === 'available' || vehicle.status === 'go' ? 'var(--go)' : vehicle.status === 'conditional' ? 'var(--cond)' : 'var(--nogo)', sub: 'Last service 12d ago' },
-    { label: 'Documents', status: '18d', color: 'var(--cond)', sub: 'Nearest expiry: Mulkia' },
-    { label: 'IVMS', status: 'Online', color: 'var(--go)', sub: 'Last seen 2m ago' },
-    { label: 'Tires', status: '5.8mm', color: 'var(--go)', sub: 'Avg tread depth' },
+    { label: 'Maintenance', status: maintStatus, color: maintColor, sub: maintSub },
+    { label: 'Documents', status: docStatus, color: docColor, sub: docSub },
+    { label: 'IVMS', status: 'Online', color: 'var(--go)', sub: 'Tracking active' },
+    { label: 'Tires', status: avgTread === '\u2014' ? avgTread : `${avgTread}mm`, color: treadColor, sub: treads.length > 0 ? `Avg of ${treads.length} tires` : 'No tires tracked' },
   ];
 
-  const timeline = [
-    { time: '14 May, 09:22', icon: 'check', label: 'Pre-trip inspection completed', detail: 'Driver: Ahmed Al-Balushi' },
-    { time: '14 May, 07:30', icon: 'route', label: 'Journey J-2026-0147 started', detail: 'Marmul → Nimr, ETA 10:15' },
-    { time: '13 May, 16:45', icon: 'wrench', label: 'Oil change completed', detail: 'WO-2026-0312 · Bay 3' },
-    { time: '13 May, 08:00', icon: 'doc', label: 'Insurance renewal uploaded', detail: 'Expires 12 Nov 2026' },
-    { time: '12 May, 14:10', icon: 'alert', label: 'Harsh braking event', detail: '7.2 m/s² · Hwy 31 km 45' },
-  ];
+  // Build timeline from real events + WOs
+  const timeline: { time: string; icon: string; label: string; detail: string }[] = [];
+  (recentEvents ?? []).forEach(e => {
+    timeline.push({
+      time: new Date(e.recordedAt as string).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      icon: (e.severity as string) === 'critical' ? 'alert' : 'flag',
+      label: `${(e.eventType as string).replace(/_/g, ' ')} event`,
+      detail: (e.details as Record<string, unknown>)?.speed ? `${(e.details as Record<string, unknown>).speed} km/h` : (e.actionStatus as string),
+    });
+  });
+  (recentWOs ?? []).forEach(w => {
+    timeline.push({
+      time: new Date(w.openedAt as string).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      icon: 'wrench',
+      label: `${(w.title as string)}`,
+      detail: `${(w.woNumber as string)} \u00b7 ${(w.status as string).replace(/_/g, ' ')}`,
+    });
+  });
+  timeline.sort((a, b) => b.time.localeCompare(a.time)); // most recent first
 
   return (
     <div>

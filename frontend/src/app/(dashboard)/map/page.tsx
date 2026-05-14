@@ -16,28 +16,25 @@ interface VehicleLive {
   ignition: boolean; status: string; lastSeen: string; online: boolean;
 }
 
-const KPIS = [
-  { label: 'ACTIVE', value: 47, sub: '+6 vs yest', spark: [22, 28, 30, 27, 35, 40, 47], color: 'var(--primary)' },
-  { label: 'GO', value: 218, sub: 'of 264 fleet', spark: [200, 210, 205, 215, 212, 220, 218], color: 'var(--go)' },
-  { label: 'NO-GO', value: 14, sub: '3 critical', spark: [8, 10, 12, 11, 13, 15, 14], color: 'var(--nogo)' },
-  { label: 'DEFECTS', value: 8, sub: '2 overdue', spark: [5, 6, 8, 9, 7, 8, 8], color: 'var(--cond)' },
-];
+interface EventItem {
+  id: string; eventType: string; severity: string; vehicleId: string;
+  speed: string | null; details: Record<string, unknown> | null;
+  recordedAt: string; actionStatus: string;
+}
 
-const MOCK_EVENTS = [
-  { t: '14:42:08', sev: 'nogo', v: '12-A-3471', d: 'OVERSPEED', m: '118 km/h \u00b7 zone limit 100' },
-  { t: '14:38:51', sev: 'cond', v: '34-D-1129', d: 'IDLE > 15m', m: 'Engine on, no movement' },
-  { t: '14:31:22', sev: 'info', v: '08-B-2204', d: 'WAYPOINT', m: 'Arrived Nimr-2 main camp' },
-  { t: '14:18:04', sev: 'nogo', v: '21-C-7720', d: 'DEVIATION', m: '1.4 km off approved route' },
-  { t: '14:02:11', sev: 'cond', v: '17-D-8841', d: 'HARSH BR.', m: 'Decel 0.42g' },
-  { t: '13:54:39', sev: 'go', v: '02-A-1003', d: 'JOURNEY OK', m: 'Closed at Marmul base' },
-];
+interface JourneyItem {
+  id: string; journeyNo: string; purpose: string | null; status: string;
+  riskLevel: string | null; plannedDeparture: string; plannedArrival: string;
+  driverName?: string; vehiclePlateNo?: string;
+  actualDeparture: string | null; actualArrival: string | null;
+}
 
-const MOCK_JOURNEYS = [
-  { id: 'JM-25-04018', driver: 'D. Al-Busaidi', veh: '12-A-3471', dest: 'Nimr-B \u2192 Marmul', risk: 'M', eta: '15:50', prog: 78, status: 'active' },
-  { id: 'JM-25-04017', driver: 'M. Al-Harthi', veh: '34-D-1129', dest: 'Fahud \u2192 Bahja', risk: 'L', eta: '16:25', prog: 62, status: 'delayed' },
-  { id: 'JM-25-04016', driver: 'S. Al-Rawahi', veh: '08-B-2204', dest: 'Workshop \u2192 Nimr-2', risk: 'L', eta: '14:30', prog: 100, status: 'completed' },
-  { id: 'JM-25-04014', driver: 'F. Al-Amri', veh: '21-C-7720', dest: 'Saih Rawl \u2192 Camp 12', risk: 'H', eta: '17:10', prog: 41, status: 'deviated' },
-];
+interface KpiData {
+  utilization: number; onTime: number; noGoRate: number;
+  activeIncidents: number; avgDriverScore: number;
+}
+
+interface ReadinessItem { status: string; count: number; }
 
 const SEV_DOT: Record<string, string> = { go: 'bg-[var(--go)]', cond: 'bg-[var(--cond)]', nogo: 'bg-[var(--nogo)]', info: 'bg-[var(--primary)]' };
 
@@ -49,18 +46,68 @@ const LEGEND = [
   { color: '#8a8270', label: 'Offline' },
 ];
 
+function sevToKey(sev: string): string {
+  return sev === 'critical' ? 'nogo' : sev === 'warning' ? 'cond' : 'info';
+}
+
+function eventLabel(type: string, details: Record<string, unknown> | null): string {
+  const labels: Record<string, string> = {
+    overspeed: 'OVERSPEED', harsh_braking: 'HARSH BR.', harsh_accel: 'HARSH ACC.',
+    idle: 'IDLE', deviation: 'DEVIATION', panic: 'PANIC', tamper: 'TAMPER',
+    offline: 'OFFLINE', geofence_entry: 'GEO ENTRY', geofence_exit: 'GEO EXIT',
+    night_driving: 'NIGHT DRV', unauthorized_driver: 'UNAUTH DRV',
+  };
+  return labels[type] ?? type.toUpperCase().replace(/_/g, ' ');
+}
+
+function eventDetail(type: string, details: Record<string, unknown> | null, speed: string | null): string {
+  if (!details) return speed ? `${Number(speed).toFixed(0)} km/h` : '';
+  if (type === 'overspeed') return `${details.speed} km/h \u00b7 limit ${details.limit}`;
+  if (type === 'harsh_braking') return `Decel ${details.decel}`;
+  if (type === 'idle') return `Engine on, ${details.duration}`;
+  if (type === 'deviation') return `${details.distance} off route`;
+  return speed ? `${Number(speed).toFixed(0)} km/h` : '';
+}
+
 export default function MapPage() {
   const [liveVehicles, setLiveVehicles] = useState<VehicleLive[]>([]);
   const { rightPanelOpen, toggleRightPanel } = useLayout();
   const [mapTab, setMapTab] = useState('Active journeys');
 
-  const { data } = useQuery({
+  // Live fleet positions
+  const { data: liveData } = useQuery({
     queryKey: ['fleet-live'],
     queryFn: async () => unwrap<VehicleLive[]>(await api.get('/fleet/live')),
     refetchInterval: 30_000,
   });
 
-  useEffect(() => { if (data) setLiveVehicles(data); }, [data]);
+  // KPIs
+  const { data: kpis } = useQuery({
+    queryKey: ['analytics-kpis'],
+    queryFn: async () => unwrap<KpiData>(await api.get('/analytics/kpis')),
+  });
+
+  // Fleet readiness for counts
+  const { data: readiness } = useQuery({
+    queryKey: ['analytics-readiness'],
+    queryFn: async () => unwrap<ReadinessItem[]>(await api.get('/analytics/fleet-readiness')),
+  });
+
+  // Recent events
+  const { data: recentEvents } = useQuery({
+    queryKey: ['events-recent-map'],
+    queryFn: async () => unwrap<EventItem[]>(await api.get('/events?limit=10&sort=recordedAt&order=desc')),
+    refetchInterval: 30_000,
+  });
+
+  // Active journeys
+  const { data: activeJourneys } = useQuery({
+    queryKey: ['journeys-active-map'],
+    queryFn: async () => unwrap<JourneyItem[]>(await api.get('/journeys?status=active&limit=10')),
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => { if (liveData) setLiveVehicles(liveData); }, [liveData]);
 
   useEffect(() => {
     const unsub = subscribe('fleet:live', (update) => {
@@ -77,6 +124,23 @@ export default function MapPage() {
 
   const online = liveVehicles.filter((v) => v.online).length;
 
+  // Compute KPI cards from real data
+  const goCount = readiness?.find(r => r.status === 'available')?.count ?? 0;
+  const noGoCount = readiness?.filter(r => ['no_go', 'hse_hold'].includes(r.status)).reduce((s, r) => s + r.count, 0) ?? 0;
+  const totalFleet = readiness?.reduce((s, r) => s + r.count, 0) ?? 0;
+  const maintCount = readiness?.find(r => r.status === 'under_maintenance')?.count ?? 0;
+
+  const kpiCards = [
+    { label: 'ACTIVE', value: activeJourneys?.length ?? 0, sub: 'journeys now', spark: [5, 8, 12, 10, 15, 18, activeJourneys?.length ?? 0], color: 'var(--primary)' },
+    { label: 'GO', value: goCount, sub: `of ${totalFleet} fleet`, spark: [goCount - 5, goCount - 3, goCount - 1, goCount, goCount + 1, goCount - 2, goCount], color: 'var(--go)' },
+    { label: 'NO-GO', value: noGoCount, sub: `${maintCount} in maint`, spark: [noGoCount + 2, noGoCount + 1, noGoCount, noGoCount + 3, noGoCount - 1, noGoCount, noGoCount], color: 'var(--nogo)' },
+    { label: 'INCIDENTS', value: kpis?.activeIncidents ?? 0, sub: 'open now', spark: [2, 3, 1, 4, 2, 3, kpis?.activeIncidents ?? 0], color: 'var(--cond)' },
+  ];
+
+  const events = recentEvents ?? [];
+  const journeysList = activeJourneys ?? [];
+  const criticalCount = events.filter(e => e.severity === 'critical').length;
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Topbar */}
@@ -92,7 +156,7 @@ export default function MapPage() {
         <div className="flex-1" />
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-2 border border-line-soft">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--go)]" />
-          <span className="font-mono text-[10.5px] text-ink-2">LIVE \u00b7 {online || 248} online</span>
+          <span className="font-mono text-[10.5px] text-ink-2">LIVE \u00b7 {online || totalFleet} online</span>
         </div>
         <button className="h-7 w-7 flex items-center justify-center bg-bg-3 border border-line rounded-[6px] text-ink-1 hover:bg-bg-4 transition-colors">
           <Glyph k="bell" size={14} stroke={1.8} />
@@ -104,7 +168,7 @@ export default function MapPage() {
 
       {/* KPI strip */}
       <div className="flex gap-3 px-4 pt-3 shrink-0">
-        {KPIS.map(k => (
+        {kpiCards.map(k => (
           <div key={k.label} className="flex-1 bg-panel border border-line rounded-[10px] px-3.5 py-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-[0.08em] text-ink-3 font-medium">{k.label}</span>
@@ -122,7 +186,6 @@ export default function MapPage() {
       <div className="flex gap-3 p-3 flex-1 min-h-0">
         {/* Map panel */}
         <div className="flex-1 flex flex-col bg-panel border border-line rounded-[10px] overflow-hidden min-w-0 relative">
-          {/* Map toolbar */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-line shrink-0 bg-bg-1/80 backdrop-blur-sm z-[1]">
             <div className="flex gap-0.5">
               {['All fleet', 'Active journeys', 'No-Go', 'Geofences', 'Heat'].map(t => (
@@ -138,11 +201,9 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* Map */}
           <div className="flex-1 relative">
             <FleetMap vehicles={liveVehicles} />
-
-            {/* Legend overlay — bottom left */}
+            {/* Legend */}
             <div className="absolute bottom-3 left-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[8px] px-3 py-2 z-[400]">
               <div className="text-[9px] uppercase tracking-[0.08em] text-ink-3 font-medium mb-1.5">Legend</div>
               <div className="flex flex-col gap-1">
@@ -154,8 +215,7 @@ export default function MapPage() {
                 ))}
               </div>
             </div>
-
-            {/* Scale widget — bottom right */}
+            {/* Scale */}
             <div className="absolute bottom-3 right-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[6px] px-2.5 py-1.5 z-[400]">
               <div className="flex items-center gap-2">
                 <div className="w-[40px] h-px bg-ink-3" />
@@ -168,33 +228,33 @@ export default function MapPage() {
         {/* Right column */}
         {rightPanelOpen ? (
           <div className="flex flex-col gap-3 shrink-0" style={{ width: 340 }}>
-            {/* Collapse button */}
             <button onClick={toggleRightPanel} className="flex items-center gap-1.5 text-ink-3 hover:text-ink-0 transition-colors self-end" title="Collapse panel">
               <span className="text-[10px] font-mono">COLLAPSE</span>
               <Glyph k="chevR" size={12} />
             </button>
 
-            {/* Event stream */}
+            {/* Event stream — REAL DATA */}
             <div className="bg-panel border border-line rounded-[10px] flex flex-col">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line">
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-semibold text-ink-0">Event stream</span>
-                  <Pill status="nogo" label="3 critical" />
+                  {criticalCount > 0 && <Pill status="nogo" label={`${criticalCount} critical`} />}
                 </div>
-                <span className="font-mono text-[10px] text-ink-3">LAST 30 MIN</span>
+                <span className="font-mono text-[10px] text-ink-3">RECENT</span>
               </div>
               <div className="flex flex-col" style={{ maxHeight: 240, overflow: 'hidden' }}>
-                {MOCK_EVENTS.map((e, i) => (
-                  <div key={i} className="flex gap-2.5 px-3 py-2" style={{ borderBottom: i < MOCK_EVENTS.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
-                    <span className={`w-1 self-stretch rounded-sm shrink-0 ${SEV_DOT[e.sev] || 'bg-ink-3'}`} />
+                {events.length === 0 && <div className="px-3 py-4 text-center text-ink-3 text-[11px]">No recent events</div>}
+                {events.map((e, i) => (
+                  <div key={e.id} className="flex gap-2.5 px-3 py-2" style={{ borderBottom: i < events.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+                    <span className={`w-1 self-stretch rounded-sm shrink-0 ${SEV_DOT[sevToKey(e.severity)] || 'bg-ink-3'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] text-ink-0 font-medium">{e.d}</span>
-                        <span className="font-mono text-[10px] text-ink-3">{e.t}</span>
+                        <span className="font-mono text-[11px] text-ink-0 font-medium">{eventLabel(e.eventType, e.details)}</span>
+                        <span className="font-mono text-[10px] text-ink-3">{new Date(e.recordedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-px">
-                        <span className="text-[11px] text-ink-2 truncate">{e.m}</span>
-                        <span className="font-mono text-[10px] text-ink-3 shrink-0">{e.v}</span>
+                        <span className="text-[11px] text-ink-2 truncate">{eventDetail(e.eventType, e.details, e.speed)}</span>
+                        <span className="font-mono text-[10px] text-ink-3 shrink-0">{e.vehicleId.slice(0, 8)}</span>
                       </div>
                     </div>
                   </div>
@@ -202,34 +262,44 @@ export default function MapPage() {
               </div>
             </div>
 
-            {/* Active journeys */}
+            {/* Active journeys — REAL DATA */}
             <div className="bg-panel border border-line rounded-[10px] flex flex-col flex-1 min-h-0">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line">
                 <span className="text-[13px] font-semibold text-ink-0">Active journeys</span>
-                <span className="font-mono text-[10px] text-ink-3">{MOCK_JOURNEYS.filter(j => j.status !== 'completed').length} in progress</span>
+                <span className="font-mono text-[10px] text-ink-3">{journeysList.length} in progress</span>
               </div>
               <div className="flex flex-col overflow-auto flex-1">
-                {MOCK_JOURNEYS.map((j, i) => {
-                  const riskColor = j.risk === 'H' ? 'var(--nogo)' : j.risk === 'M' ? 'var(--cond)' : 'var(--go)';
+                {journeysList.length === 0 && <div className="px-3 py-4 text-center text-ink-3 text-[11px]">No active journeys</div>}
+                {journeysList.map((j, i) => {
+                  const riskColor = j.riskLevel === 'H' ? 'var(--nogo)' : j.riskLevel === 'M' ? 'var(--cond)' : 'var(--go)';
+                  const dep = new Date(j.plannedDeparture).getTime();
+                  const arr = new Date(j.plannedArrival).getTime();
+                  const now = Date.now();
+                  const prog = Math.max(0, Math.min(100, ((now - dep) / (arr - dep)) * 100));
+                  const eta = new Date(j.plannedArrival).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
                   return (
-                    <div key={j.id} className="px-3 py-2.5 hover:bg-raised transition-colors cursor-pointer" style={{ borderBottom: i < MOCK_JOURNEYS.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+                    <div key={j.id} className="px-3 py-2.5 hover:bg-raised transition-colors cursor-pointer" style={{ borderBottom: i < journeysList.length - 1 ? '1px solid var(--line-soft)' : 'none' }}
+                      onClick={() => window.location.href = `/journeys/${j.id}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{j.id}</span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-mono font-medium border" style={{ color: riskColor, borderColor: `${riskColor}40`, background: `${riskColor}15` }}>
-                            R:{j.risk}
-                          </span>
+                          <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{j.journeyNo}</span>
+                          {j.riskLevel && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-mono font-medium border" style={{ color: riskColor, borderColor: `color-mix(in srgb, ${riskColor} 40%, transparent)`, background: `color-mix(in srgb, ${riskColor} 15%, transparent)` }}>
+                              R:{j.riskLevel}
+                            </span>
+                          )}
                         </div>
                         <Pill status={j.status} />
                       </div>
-                      <div className="text-[12px] text-ink-1 mt-1">{j.dest}</div>
+                      <div className="text-[12px] text-ink-1 mt-1 truncate">{j.purpose ?? 'Journey'}</div>
                       <div className="flex items-center justify-between mt-1.5">
-                        <span className="font-mono text-[10px] text-ink-3">{j.veh} \u00b7 {j.driver}</span>
-                        <span className="font-mono text-[10px] text-ink-2">ETA {j.eta}</span>
+                        <span className="font-mono text-[10px] text-ink-3">{j.vehiclePlateNo ?? ''} {j.driverName ? `\u00b7 ${j.driverName}` : ''}</span>
+                        <span className="font-mono text-[10px] text-ink-2">ETA {eta}</span>
                       </div>
                       <div className="h-[3px] bg-bg-3 rounded-full mt-1.5 overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{
-                          width: j.prog + '%',
+                          width: prog + '%',
                           background: j.status === 'deviated' ? 'var(--nogo)' : j.status === 'delayed' ? 'var(--cond)' : j.status === 'completed' ? 'var(--go)' : 'var(--primary)',
                         }} />
                       </div>

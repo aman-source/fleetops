@@ -43,6 +43,10 @@ const SITES = [
   { site: 'Lekhwair', veh: 11, go: 91, jour: 31, ontime: 97, inc: 1, score: 84.5, cost: 0.171 },
 ];
 
+interface JourneySummary {
+  id: string; status: string; plannedDeparture: string;
+}
+
 export default function AnalyticsPage() {
   const { data: kpis, isLoading } = useQuery({
     queryKey: ['kpis'],
@@ -52,6 +56,12 @@ export default function AnalyticsPage() {
   const { data: readiness } = useQuery({
     queryKey: ['fleet-readiness'],
     queryFn: async () => unwrap<ReadinessItem[]>(await api.get('/analytics/fleet-readiness')),
+  });
+
+  // Journeys for 30-day chart
+  const { data: journeys30d } = useQuery({
+    queryKey: ['journeys-30d'],
+    queryFn: async () => unwrap<JourneySummary[]>(await api.get('/journeys?limit=200')),
   });
 
   const totalVehicles = readiness?.reduce((s, r) => s + Number(r.count), 0) ?? 264;
@@ -88,7 +98,7 @@ export default function AnalyticsPage() {
               <KPI label="JOURNEY ON-TIME" value={`${kpis.onTimePct}`} unit="%" delta="+1.8 MoM" deltaColor="var(--go)" spark={[88,90,89,91,93,93,kpis.onTimePct]} color="#1ec991" />
               <KPI label="NO-GO RATE" value={`${kpis.noGoRate}`} unit="%" delta="-0.8 MoM" deltaColor="var(--go)" spark={[7,8,7,6.5,6,5.6,kpis.noGoRate]} color="#f5a524" />
               <KPI label="INCIDENTS &middot; 30D" value={`${kpis.activeIncidents}`} unit="" delta={`TRIR ${(kpis.activeIncidents * 0.047).toFixed(2)}`} deltaColor="var(--ink-2)" spark={[1,0,1,0,1,1,kpis.activeIncidents]} color="#ef4747" />
-              <KPI label="DRIVER SCORE AVG" value="88.4" unit="/100" delta="+0.6" deltaColor="var(--go)" spark={[85,86,86,87,87,88,88.4]} color="#a78bfa" />
+              <KPI label="DRIVER SCORE AVG" value={kpis.avgDriverScore ? String(kpis.avgDriverScore) : '88.4'} unit="/100" delta="+0.6" deltaColor="var(--go)" spark={[85,86,86,87,87,88,kpis.avgDriverScore ?? 88.4]} color="#a78bfa" />
               <KPI label="COST &middot; OMR / KM" value="0.146" unit="" delta="-2.1% vs Apr" deltaColor="var(--go)" spark={[0.16,0.158,0.155,0.151,0.149,0.148,0.146]} color="#38d4d4" />
             </div>
 
@@ -140,18 +150,37 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
                 <div className="flex-1 p-3.5 flex items-end gap-[3px]">
-                  {Array.from({ length: 30 }, (_, i) => {
-                    const h = 20 + Math.random() * 80;
-                    const delayed = Math.random() > 0.7 ? 8 + Math.random() * 15 : 0;
-                    const deviated = Math.random() > 0.85 ? 5 + Math.random() * 10 : 0;
-                    return (
-                      <div key={i} className="flex-1 flex flex-col-reverse rounded-t-[2px] overflow-hidden" style={{ height: `${h}%` }}>
-                        <div className="flex-1" style={{ background: '#1ec991' }} />
-                        {delayed > 0 && <div style={{ height: `${delayed}%`, background: '#f5a524' }} />}
-                        {deviated > 0 && <div style={{ height: `${deviated}%`, background: '#ef4747' }} />}
-                      </div>
-                    );
-                  })}
+                  {(() => {
+                    // Build 30-day bars from real journey data
+                    const bars: { approved: number; delayed: number; deviated: number }[] = [];
+                    for (let d = 29; d >= 0; d--) {
+                      const day = new Date(); day.setDate(day.getDate() - d); day.setHours(0, 0, 0, 0);
+                      const nextDay = new Date(day); nextDay.setDate(nextDay.getDate() + 1);
+                      const dayJourneys = (journeys30d ?? []).filter(j => {
+                        const dep = new Date(j.plannedDeparture);
+                        return dep >= day && dep < nextDay;
+                      });
+                      bars.push({
+                        approved: dayJourneys.filter(j => !['delayed', 'deviated', 'rejected', 'cancelled'].includes(j.status)).length,
+                        delayed: dayJourneys.filter(j => j.status === 'delayed').length,
+                        deviated: dayJourneys.filter(j => j.status === 'deviated').length,
+                      });
+                    }
+                    const maxTotal = Math.max(1, ...bars.map(b => b.approved + b.delayed + b.deviated));
+                    return bars.map((b, i) => {
+                      const total = b.approved + b.delayed + b.deviated;
+                      const h = total > 0 ? (total / maxTotal) * 100 : 2;
+                      const delPct = total > 0 ? (b.delayed / total) * 100 : 0;
+                      const devPct = total > 0 ? (b.deviated / total) * 100 : 0;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col-reverse rounded-t-[2px] overflow-hidden" style={{ height: `${h}%`, minHeight: 2 }}>
+                          <div className="flex-1" style={{ background: '#1ec991' }} />
+                          {delPct > 0 && <div style={{ height: `${delPct}%`, background: '#f5a524' }} />}
+                          {devPct > 0 && <div style={{ height: `${devPct}%`, background: '#ef4747' }} />}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
