@@ -9,10 +9,10 @@ export default function DriverLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink0,
-        tabBarInactiveTintColor: colors.ink4,
+        tabBarInactiveTintColor: '#9a9389',
         tabBarStyle: {
-          backgroundColor: colors.bg0,
-          borderTopColor: colors.line,
+          backgroundColor: '#f6f5f1',
+          borderTopColor: 'rgba(0,0,0,0.06)',
           borderTopWidth: 1,
           paddingBottom: 28,
           height: 80,
@@ -27,22 +27,22 @@ export default function DriverLayout() {
     >
       <Tabs.Screen name="today" options={{
         title: 'Today',
-        tabBarIcon: ({ color }) => <Glyph k="flag" size={22} color={color} />,
+        tabBarIcon: ({ color }) => <Glyph k="flag" size={20} stroke={1.8} color={color} />,
       }} />
       <Tabs.Screen name="trips" options={{
         title: 'Trips',
-        tabBarIcon: ({ color }) => <Glyph k="route" size={22} color={color} />,
+        tabBarIcon: ({ color }) => <Glyph k="route" size={20} stroke={1.8} color={color} />,
       }} />
       <Tabs.Screen name="checklist" options={{ href: null }} />
       <Tabs.Screen name="qr-auth" options={{ href: null }} />
       <Tabs.Screen name="in-trip" options={{ href: null }} />
       <Tabs.Screen name="defects" options={{
         title: 'Defects',
-        tabBarIcon: ({ color }) => <Glyph k="alert" size={22} color={color} />,
+        tabBarIcon: ({ color }) => <Glyph k="alert" size={20} stroke={1.8} color={color} />,
       }} />
       <Tabs.Screen name="profile" options={{
         title: 'Me',
-        tabBarIcon: ({ color }) => <Glyph k="user" size={22} color={color} />,
+        tabBarIcon: ({ color }) => <Glyph k="user" size={20} stroke={1.8} color={color} />,
       }} />
     </Tabs>
   );

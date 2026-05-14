@@ -83,8 +83,16 @@ export default function ChecklistScreen() {
         </Pressable>
       </View>
 
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionSub}>PRE-TRIP · VEHICLE EXTERIOR</Text>
+        <Text style={styles.sectionTitle}>Walk-around</Text>
+      </View>
+
       <View style={styles.progressSection}>
-        <Text style={styles.progressText}>{completed} / {items.length} COMPLETE · {defects.length} DEFECT{defects.length !== 1 ? 'S' : ''}</Text>
+        <View style={styles.progressRow}>
+          <Text style={styles.progressText}>{completed} / {items.length} COMPLETE</Text>
+          <Text style={styles.defectCount}>{defects.length} DEFECT{defects.length !== 1 ? 'S' : ''}</Text>
+        </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${progress * 100}%` as unknown as number }]} />
         </View>
@@ -93,7 +101,7 @@ export default function ChecklistScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {step === 0 && <PhotoGrid photos={photos} onCapture={handleCapture} />}
 
-        <Card noPadding>
+        <View style={styles.itemsList}>
           {items.map((item) => (
             <ChecklistItem
               key={item.id}
@@ -104,7 +112,7 @@ export default function ChecklistScreen() {
               onFail={() => setItemStatus(item.id, 'fail', 'Failed inspection')}
             />
           ))}
-        </Card>
+        </View>
 
         {defects.map((d) => (
           <DefectCard key={d.id} itemLabel={d.label} description={d.note ?? 'Failed inspection. Photo uploaded. This may trigger Conditional Release.'} />
@@ -129,10 +137,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg0 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.screenH, paddingVertical: 12 },
   stepLabel: { fontFamily: fonts.mono500, fontSize: 12, color: colors.ink2, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sectionHeader: { paddingHorizontal: spacing.screenH, paddingBottom: 12 },
+  sectionSub: { fontFamily: fonts.mono500, fontSize: 11, color: colors.ink3, letterSpacing: 0.8, textTransform: 'uppercase' },
+  sectionTitle: { fontFamily: fonts.sans600, fontSize: 22, color: colors.ink0, letterSpacing: -0.4, marginTop: 4 },
   progressSection: { paddingHorizontal: spacing.screenH, gap: 6, marginBottom: 12 },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
   progressText: { fontFamily: fonts.mono400, fontSize: 11, color: colors.ink3 },
+  defectCount: { fontFamily: fonts.mono400, fontSize: 11, color: colors.sos },
   progressBar: { height: 4, backgroundColor: colors.bg4, borderRadius: 2 },
-  progressFill: { height: 4, backgroundColor: colors.go, borderRadius: 2 },
+  progressFill: { height: 4, backgroundColor: colors.ink0, borderRadius: 2 },
+  itemsList: { gap: 6 },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.screenH, gap: spacing.sectionGap },
   footer: { flexDirection: 'row', gap: 8, paddingHorizontal: spacing.screenH, paddingTop: 12, backgroundColor: 'rgba(246,244,238,0.96)', borderTopWidth: 1, borderTopColor: colors.lineSoft },

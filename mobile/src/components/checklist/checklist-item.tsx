@@ -14,7 +14,7 @@ interface ChecklistItemProps {
 
 export function ChecklistItem({ label, description, status, onPass, onFail }: ChecklistItemProps) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, status === 'fail' && styles.rowFail]}>
       <Pressable
         style={[styles.checkbox,
           status === 'pass' && styles.pass,
@@ -35,7 +35,8 @@ export function ChecklistItem({ label, description, status, onPass, onFail }: Ch
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 12, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.line },
+  rowFail: { borderColor: 'rgba(220,38,38,0.4)' },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   pass: { backgroundColor: colors.go, borderColor: colors.go },
   fail: { backgroundColor: colors.nogo, borderColor: colors.nogo },

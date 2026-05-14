@@ -119,10 +119,19 @@ export default function HomeScreen() {
           </View>
           <Pill status="active" label="SAVE 18 min" />
         </View>
-        {['H. Al-Lawati · 06:00 · Marmul Block C', 'S. Al-Harthy · 06:00 · Marmul Block A', 'K. Al-Busaidi · 06:30 · Nimr Gate'].map((p, i) => (
+        {[
+          { name: 'H. Al-Lawati', time: '06:00', dest: 'Marmul Block C', color: '#4a90ff' },
+          { name: 'F. Al-Amri', time: '05:45', dest: 'Marmul Block A', color: '#a78bfa' },
+          { name: 'T. Al-Hosni', time: '06:15', dest: 'Marmul Workshop', color: '#f5a524' },
+        ].map((p, i) => (
           <View key={i} style={[styles.poolRow, i < 2 && styles.poolRowBorder]}>
-            <View style={styles.poolAvatar} />
-            <Text style={styles.poolName}>{p}</Text>
+            <View style={[styles.poolAvatar, { backgroundColor: p.color }]}>
+              <Text style={styles.poolInitial}>{p.name.split('.').map(s => s.trim()[0]).join('')}</Text>
+            </View>
+            <View style={styles.poolTextCol}>
+              <Text style={styles.poolNameText}>{p.name}</Text>
+              <Text style={styles.poolMeta}>{p.time} · {p.dest}</Text>
+            </View>
           </View>
         ))}
       </Card>
@@ -188,8 +197,11 @@ const styles = StyleSheet.create({
   poolSub: { fontFamily: fonts.sans400, fontSize: 11, color: colors.ink3, marginTop: 1 },
   poolRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   poolRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  poolAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary },
-  poolName: { fontFamily: fonts.mono400, fontSize: 12, color: colors.ink1 },
+  poolAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: 'center' as const, justifyContent: 'center' as const },
+  poolInitial: { fontFamily: fonts.mono500, fontSize: 10, color: colors.white },
+  poolTextCol: { flex: 1, gap: 0 },
+  poolNameText: { fontFamily: fonts.sans400, fontSize: 12.5, color: colors.ink0 },
+  poolMeta: { fontFamily: fonts.mono400, fontSize: 10.5, color: colors.ink3 },
   notesInput: { fontFamily: fonts.sans400, fontSize: 13, color: colors.ink0, marginTop: 8, minHeight: 60, textAlignVertical: 'top' },
   slaText: { fontFamily: fonts.mono500, fontSize: 10, color: colors.ink3, textAlign: 'center', letterSpacing: 0.5 },
 });

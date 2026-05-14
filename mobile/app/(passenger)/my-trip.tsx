@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import { MapboxView } from '../../src/components/map/mapbox-view';
 import { Glyph } from '../../src/components/ui/glyph';
+import { Pill } from '../../src/components/ui/pill';
 import { subscribe } from '../../src/lib/ws';
 import { colors } from '../../src/theme/colors';
 import { fonts } from '../../src/theme/typography';
@@ -53,7 +54,10 @@ export default function MyTripScreen() {
       <View style={[styles.bottomCard, { paddingBottom: insets.bottom + 92 }]}>
         <View style={styles.handle} />
 
-        <Text style={styles.statusLabel}>SHUTTLE IS ON THE WAY</Text>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>SHUTTLE IS ON THE WAY</Text>
+          <Pill status="go" label="ON TIME" />
+        </View>
         <Text style={styles.etaText}>{eta}</Text>
         <Text style={styles.pickupText}>Picking up at Muscat HQ · Building 4 lobby</Text>
 
@@ -61,7 +65,7 @@ export default function MyTripScreen() {
           <View style={styles.driverAvatar} />
           <View style={styles.driverInfo}>
             <View style={styles.driverRow}>
-              <Text style={styles.driverName}>Daoud Al-Busaidi</Text>
+              <Text style={styles.driverName}>Daoud A.</Text>
               <Text style={styles.driverRating}>★ 4.92 · 3 trips</Text>
             </View>
             <Text style={styles.driverVehicle}>Toyota Coaster · 14 seats</Text>
@@ -81,7 +85,7 @@ export default function MyTripScreen() {
             </View>
             <View style={styles.stopInfo}>
               <View style={styles.stopHeader}>
-                <Text style={styles.stopName}>{stop.name}</Text>
+                <Text style={[styles.stopName, stop.state === 'next' && styles.stopNameActive]}>{stop.name}</Text>
                 <Text style={styles.stopTime}>{stop.time}</Text>
               </View>
               <Text style={styles.stopDesc}>{stop.desc}</Text>
@@ -118,6 +122,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 8,
   },
   handle: { width: 36, height: 4, backgroundColor: colors.lineStrong, borderRadius: 2, alignSelf: 'center', marginBottom: 14 },
+  statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   statusLabel: { fontFamily: fonts.mono500, fontSize: 11, color: colors.ink3, letterSpacing: 0.5 },
   etaText: { fontFamily: fonts.mono500, fontSize: 28, color: colors.ink0, letterSpacing: -0.5, marginTop: 2 },
   pickupText: { fontFamily: fonts.sans400, fontSize: 12, color: colors.ink3, marginTop: 2 },
@@ -138,7 +143,8 @@ const styles = StyleSheet.create({
   stopLine: { width: 1, flex: 1, backgroundColor: colors.ink4, marginVertical: 2, minHeight: 24 },
   stopInfo: { flex: 1, paddingBottom: 16 },
   stopHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  stopName: { fontFamily: fonts.sans500, fontSize: 13, color: colors.ink0 },
+  stopName: { fontFamily: fonts.sans400, fontSize: 13, color: colors.ink3 },
+  stopNameActive: { fontFamily: fonts.sans600, color: colors.ink0 },
   stopTime: { fontFamily: fonts.mono400, fontSize: 11, color: colors.ink3 },
   stopDesc: { fontFamily: fonts.sans400, fontSize: 11, color: colors.ink4, marginTop: 1 },
 });

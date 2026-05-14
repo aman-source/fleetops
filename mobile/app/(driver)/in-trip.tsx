@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   statGrid: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   statBox: { flex: 1, backgroundColor: colors.bg3, borderRadius: 10, padding: 10, alignItems: 'center' },
   statLabel: { fontFamily: fonts.mono500, fontSize: 9, color: colors.ink3, letterSpacing: 0.5 },
-  statValue: { fontFamily: fonts.sans600, fontSize: 18, color: colors.ink0, marginTop: 4 },
+  statValue: { fontFamily: fonts.mono500, fontSize: 16, color: colors.ink0, marginTop: 4 },
   sheetActions: { flexDirection: 'row', gap: 8 },
   sosButton: {
     width: 52, height: 52, borderRadius: 10,

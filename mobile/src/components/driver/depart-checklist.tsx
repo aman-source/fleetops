@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   header: { fontFamily: fonts.mono500, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.ink3, padding: 14, paddingBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   checkboxDone: { backgroundColor: colors.go, borderColor: colors.go },
   textCol: { flex: 1, gap: 1 },
   label: { fontFamily: fonts.sans500, fontSize: 13, color: colors.ink0 },
