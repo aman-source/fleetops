@@ -1,4 +1,4 @@
-import { eq, and, isNull, lt, desc, asc } from 'drizzle-orm';
+import { eq, and, isNull, lt, desc, asc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import { incidents, incidentSteps, driverScores } from '../../infra/db/schema/hse.js';
 import { vehicles } from '../../infra/db/schema/vehicles.js';
@@ -33,12 +33,37 @@ export async function listIncidents(tenantId: string, query: {
   if (query.tier) conditions.push(eq(incidents.tier, query.tier));
   if (query.cursor) conditions.push(lt(incidents.id, query.cursor));
 
-  const rows = await db.select().from(incidents)
+  const rows = await db.select({
+    id: incidents.id,
+    tier: incidents.tier,
+    status: incidents.status,
+    situation: incidents.situation,
+    vehicleId: incidents.vehicleId,
+    vehiclePlateNo: vehicles.plateNo,
+    driverId: incidents.driverId,
+    journeyId: incidents.journeyId,
+    lat: incidents.lat,
+    lon: incidents.lon,
+    startedAt: incidents.startedAt,
+    closedAt: incidents.closedAt,
+    orgId: incidents.orgId,
+    createdAt: incidents.createdAt,
+    currentStep: sql<string | null>`(
+      select description from incident_steps
+      where incident_id = ${incidents.id} and status = 'active'
+      order by step_number asc limit 1
+    )`,
+  }).from(incidents)
+    .leftJoin(vehicles, eq(incidents.vehicleId, vehicles.id))
     .where(and(...conditions))
     .orderBy(desc(incidents.startedAt))
     .limit(query.limit);
 
-  return { items: rows, meta: paginationMeta(rows, query.limit) };
+  // Deduplicate by id (leftJoin can theoretically produce duplicates if vehicle has multiple rows)
+  const seen = new Set<string>();
+  const deduped = rows.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+
+  return { items: deduped, meta: paginationMeta(deduped, query.limit) };
 }
 
 export async function getIncident(tenantId: string, incidentId: string) {

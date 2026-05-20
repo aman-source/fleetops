@@ -1,10 +1,11 @@
-import { sql, eq, and, gte, lte, count } from 'drizzle-orm';
+import { sql, eq, and, gte, lte, count, isNull, desc } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { journeys } from '../../infra/db/schema/journeys.js';
 import { events } from '../../infra/db/schema/events.js';
-import { incidents } from '../../infra/db/schema/hse.js';
-import { workOrders } from '../../infra/db/schema/maintenance.js';
+import { incidents, driverScores } from '../../infra/db/schema/hse.js';
+import { organizations } from '../../infra/db/schema/organizations.js';
+
 import { redis } from '../../infra/redis/client.js';
 
 const KPI_CACHE_TTL = 60; // seconds
@@ -108,4 +109,106 @@ export async function getJourneyStats(tenantId: string, from: string, to: string
     .groupBy(journeys.status);
 
   return rows;
+}
+
+export interface SiteBreakdownRow {
+  site: string;
+  veh: number;
+  goPct: number;
+  jour: number;
+  onTimePct: number;
+  inc: number;
+  avgScore: number;
+}
+
+export async function getSiteBreakdown(tenantId: string): Promise<SiteBreakdownRow[]> {
+  // Group vehicles by projectId, join org name directly — avoids N-level hierarchy issues
+  const vehByProject = await db.select({
+    projectId: vehicles.projectId,
+    orgName: organizations.name,
+    total: count(),
+    go: sql<number>`count(*) filter (where ${vehicles.status} in ('available', 'conditional'))`,
+  }).from(vehicles)
+    .innerJoin(organizations, eq(vehicles.projectId, organizations.id))
+    .where(and(eq(vehicles.orgId, tenantId), isNull(vehicles.deletedAt)))
+    .groupBy(vehicles.projectId, organizations.name);
+
+  if (vehByProject.length === 0) return [];
+
+  // Avg driver score across tenant (same for all sites)
+  const scoreRows = await db.select({ avg: sql<number>`avg(${driverScores.totalScore})` })
+    .from(driverScores)
+    .where(eq(driverScores.orgId, tenantId));
+  const avgScore = Math.round(Number(scoreRows[0]?.avg ?? 0) * 10) / 10;
+
+  const results: SiteBreakdownRow[] = [];
+
+  for (const row of vehByProject) {
+    const veh = Number(row.total ?? 0);
+    const goCount = Number(row.go ?? 0);
+
+    // Get vehicle IDs for this project
+    const vehIds = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(eq(vehicles.projectId, row.projectId!), isNull(vehicles.deletedAt)));
+
+    if (vehIds.length === 0) continue;
+    const idList = vehIds.map(v => `'${v.id}'`).join(',');
+
+    const jourRows = await db.select({
+      total: count(),
+      onTime: sql<number>`count(*) filter (where ${journeys.status} in ('completed', 'closed') and ${journeys.actualArrival} <= ${journeys.plannedArrival})`,
+    }).from(journeys)
+      .where(and(
+        sql`${journeys.vehicleId} in (${sql.raw(idList)})`,
+        isNull(journeys.deletedAt),
+      ));
+
+    const incRows = await db.select({ cnt: count() })
+      .from(incidents)
+      .where(and(
+        sql`${incidents.vehicleId} in (${sql.raw(idList)})`,
+        sql`${incidents.status} != 'closed'`,
+        isNull(incidents.deletedAt),
+      ));
+
+    const jour = Number(jourRows[0]?.total ?? 0);
+    const onTime = Number(jourRows[0]?.onTime ?? 0);
+    const inc = Number(incRows[0]?.cnt ?? 0);
+
+    results.push({
+      site: row.orgName,
+      veh,
+      goPct: veh > 0 ? Math.round((goCount / veh) * 100) : 0,
+      jour,
+      onTimePct: jour > 0 ? Math.round((onTime / jour) * 100) : 0,
+      inc,
+      avgScore,
+    });
+  }
+
+  return results.sort((a, b) => b.veh - a.veh);
+}
+
+export async function getLtiDays(tenantId: string): Promise<{ daysSinceLti: number; lastLtiDate: string | null }> {
+  // LTI = Lost Time Injury = T3 incident that was closed
+  const rows = await db.select({ closedAt: incidents.closedAt })
+    .from(incidents)
+    .where(and(
+      eq(incidents.orgId, tenantId),
+      eq(incidents.tier, 3),
+      sql`${incidents.status} = 'closed'`,
+      isNull(incidents.deletedAt),
+    ))
+    .orderBy(desc(incidents.closedAt))
+    .limit(1);
+
+  if (!rows[0]?.closedAt) {
+    // No T3 incidents closed — use org creation date as baseline (safe default)
+    return { daysSinceLti: 365, lastLtiDate: null };
+  }
+
+  const ms = Date.now() - new Date(rows[0].closedAt).getTime();
+  const daysSinceLti = Math.floor(ms / 86400_000);
+  return { daysSinceLti, lastLtiDate: rows[0].closedAt.toISOString() };
 }

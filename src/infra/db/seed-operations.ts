@@ -170,7 +170,7 @@ async function seedOperations() {
       status,
       emergencyContact: `+968 9${rand(1000000, 9999999)}`,
       vehicleStatusSnapshot: v.status,
-      orgId: i < 15 ? marmul.id : nimr.id,
+      orgId: arTech.id,
       createdBy: jmUser.id,
     });
   }

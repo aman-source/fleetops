@@ -34,14 +34,10 @@ const RISKS = [
   { sev: 'L', title: 'Cost overrun \u2014 Nimr-2 site 8% above budget YTD', detail: 'Fuel + maintenance costs trending up. Review utilization.', action: 'Report' },
 ];
 
-const SITES = [
-  { site: 'Marmul Base', veh: 94, go: 89, jour: 312, ontime: 96, inc: 0, score: 91.2, cost: 0.132 },
-  { site: 'Nimr-2', veh: 62, go: 85, jour: 198, ontime: 93, inc: 1, score: 88.7, cost: 0.158 },
-  { site: 'Saih Rawl', veh: 41, go: 90, jour: 127, ontime: 95, inc: 0, score: 89.4, cost: 0.141 },
-  { site: 'Fahud', veh: 38, go: 82, jour: 104, ontime: 91, inc: 1, score: 86.1, cost: 0.162 },
-  { site: 'Bahja', veh: 18, go: 94, jour: 56, ontime: 98, inc: 0, score: 92.0, cost: 0.128 },
-  { site: 'Lekhwair', veh: 11, go: 91, jour: 31, ontime: 97, inc: 1, score: 84.5, cost: 0.171 },
-];
+interface SiteRow {
+  site: string; veh: number; goPct: number; jour: number;
+  onTimePct: number; inc: number; avgScore: number;
+}
 
 interface JourneySummary {
   id: string; status: string; plannedDeparture: string;
@@ -62,6 +58,11 @@ export default function AnalyticsPage() {
   const { data: journeys30d } = useQuery({
     queryKey: ['journeys-30d'],
     queryFn: async () => unwrap<JourneySummary[]>(await api.get('/journeys?limit=200')),
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ['analytics-sites'],
+    queryFn: async () => unwrap<SiteRow[]>(await api.get('/analytics/sites')),
   });
 
   const totalVehicles = readiness?.reduce((s, r) => s + Number(r.count), 0) ?? 264;
@@ -215,7 +216,7 @@ export default function AnalyticsPage() {
             <div className="bg-panel border border-line rounded-[10px]">
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-line">
                 <span className="text-[13px] font-semibold text-ink-0">Site breakdown</span>
-                <span className="font-mono text-[10.5px] text-ink-3">6 SITES &middot; MTD</span>
+                <span className="font-mono text-[10.5px] text-ink-3">{sites ? `${sites.length} SITES` : '—'} &middot; LIVE</span>
               </div>
               <table className="w-full text-[12px]">
                 <thead>
@@ -227,20 +228,21 @@ export default function AnalyticsPage() {
                     <th className="text-right px-3.5 py-2 text-ink-3 font-medium text-[10px] uppercase tracking-[0.08em]">On-time</th>
                     <th className="text-right px-3.5 py-2 text-ink-3 font-medium text-[10px] uppercase tracking-[0.08em]">Incidents</th>
                     <th className="text-right px-3.5 py-2 text-ink-3 font-medium text-[10px] uppercase tracking-[0.08em]">Driver avg</th>
-                    <th className="text-right px-3.5 py-2 text-ink-3 font-medium text-[10px] uppercase tracking-[0.08em]">Cost/km</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft">
-                  {SITES.map(s => (
+                  {(!sites || sites.length === 0) && (
+                    <tr><td colSpan={7} className="px-3.5 py-4 text-center text-ink-3 text-[11px]">No site data</td></tr>
+                  )}
+                  {sites?.map(s => (
                     <tr key={s.site} className="hover:bg-raised transition-colors">
                       <td className="px-3.5 py-2.5 text-ink-0 font-medium">{s.site}</td>
                       <td className="px-3.5 py-2.5 text-ink-1 font-mono text-right">{s.veh}</td>
-                      <td className="px-3.5 py-2.5 font-mono text-right" style={{ color: s.go >= 90 ? 'var(--go)' : s.go >= 80 ? 'var(--cond)' : 'var(--nogo)' }}>{s.go}%</td>
+                      <td className="px-3.5 py-2.5 font-mono text-right" style={{ color: s.goPct >= 90 ? 'var(--go)' : s.goPct >= 80 ? 'var(--cond)' : 'var(--nogo)' }}>{s.goPct}%</td>
                       <td className="px-3.5 py-2.5 text-ink-1 font-mono text-right">{s.jour}</td>
-                      <td className="px-3.5 py-2.5 font-mono text-right" style={{ color: s.ontime >= 95 ? 'var(--go)' : 'var(--cond)' }}>{s.ontime}%</td>
+                      <td className="px-3.5 py-2.5 font-mono text-right" style={{ color: s.onTimePct >= 95 ? 'var(--go)' : 'var(--cond)' }}>{s.onTimePct}%</td>
                       <td className="px-3.5 py-2.5 font-mono text-right" style={{ color: s.inc > 0 ? 'var(--nogo)' : 'var(--go)' }}>{s.inc}</td>
-                      <td className="px-3.5 py-2.5 text-ink-1 font-mono text-right">{s.score.toFixed(1)}</td>
-                      <td className="px-3.5 py-2.5 text-ink-1 font-mono text-right">{s.cost.toFixed(3)}</td>
+                      <td className="px-3.5 py-2.5 text-ink-1 font-mono text-right">{s.avgScore > 0 ? s.avgScore.toFixed(1) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -37,4 +37,16 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const data = await service.getJourneyStats(request.tenantId, query.from, query.to);
     return sendSuccess(reply, data);
   });
+
+  // GET /analytics/sites
+  app.get('/analytics/sites', async (request, reply) => {
+    const data = await service.getSiteBreakdown(request.tenantId);
+    return sendSuccess(reply, data);
+  });
+
+  // GET /analytics/lti
+  app.get('/analytics/lti', async (request, reply) => {
+    const data = await service.getLtiDays(request.tenantId);
+    return sendSuccess(reply, data);
+  });
 }

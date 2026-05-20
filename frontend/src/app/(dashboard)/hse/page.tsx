@@ -19,7 +19,7 @@ interface Incident {
 interface DriverScore {
   driverId: string;
   driverName: string;
-  overallScore: number;
+  totalScore: string | number | null;
   overspeedCount: number;
   harshBrakingCount: number;
   harshAccelCount: number;
@@ -46,12 +46,17 @@ export default function HSEConsolePage() {
 
   const { data: scores } = useQuery({
     queryKey: ['driver-scores'],
-    queryFn: async () => unwrap<DriverScore[]>(await api.get('/driver-scores?limit=10&sort=overallScore&order=desc')),
+    queryFn: async () => unwrap<DriverScore[]>(await api.get('/driver-scores?limit=10&sort=totalScore&order=desc')),
   });
 
   const { data: events } = useQuery({
     queryKey: ['events-recent'],
     queryFn: async () => unwrap<Event[]>(await api.get('/events?limit=15&sort=recordedAt&order=desc')),
+  });
+
+  const { data: ltiData } = useQuery({
+    queryKey: ['analytics-lti'],
+    queryFn: async () => unwrap<{ daysSinceLti: number; lastLtiDate: string | null }>(await api.get('/analytics/lti')),
   });
 
   const activeIncidents = incidents?.filter(i => i.status !== 'closed') ?? [];
@@ -62,14 +67,14 @@ export default function HSEConsolePage() {
     return d.toDateString() === now.toDateString();
   }).length ?? 0;
   const avgScore = scores && scores.length > 0
-    ? (scores.reduce((s, d) => s + d.overallScore, 0) / scores.length).toFixed(1)
+    ? (scores.reduce((s, d) => s + Number(d.totalScore ?? 0), 0) / scores.length).toFixed(1)
     : '—';
 
   const kpis = [
     { label: 'ACTIVE INCIDENTS', value: String(totalActive), delta: totalActive > 0 ? `${totalActive} open` : 'None', color: totalActive > 0 ? 'var(--nogo)' : 'var(--go)', spark: [2, 3, 1, 4, 2, 3, 1, totalActive] },
     { label: 'EVENTS TODAY', value: String(todayEvents), delta: 'last 24h', color: 'var(--cond)', spark: [5, 8, 12, 7, 9, 11, 6, todayEvents] },
     { label: 'DRIVER SCORE AVG', value: avgScore, delta: '/100', color: 'var(--primary)', spark: [82, 84, 86, 85, 87, 88, 86, Number(avgScore) || 85] },
-    { label: 'DAYS SINCE LTI', value: '142', delta: 'Lost Time Injury', color: 'var(--go)', spark: [100, 110, 120, 125, 130, 135, 140, 142] },
+    { label: 'DAYS SINCE LTI', value: String(ltiData?.daysSinceLti ?? '—'), delta: 'Lost Time Injury', color: 'var(--go)', spark: ltiData ? [ltiData.daysSinceLti - 7, ltiData.daysSinceLti - 6, ltiData.daysSinceLti - 5, ltiData.daysSinceLti - 4, ltiData.daysSinceLti - 3, ltiData.daysSinceLti - 2, ltiData.daysSinceLti - 1, ltiData.daysSinceLti] : [100, 110, 120, 125, 130, 135, 140, 142] },
   ];
 
   return (
@@ -167,7 +172,8 @@ export default function HSEConsolePage() {
                 <tbody className="divide-y divide-line-soft">
                   {(!scores || scores.length === 0) && <tr><td colSpan={4} className="px-3 py-4 text-center text-ink-3 text-[11px]">No driver scores</td></tr>}
                   {scores?.map((d, i) => {
-                    const scoreColor = d.overallScore >= 85 ? 'var(--go)' : d.overallScore >= 70 ? 'var(--cond)' : 'var(--nogo)';
+                    const score = Number(d.totalScore ?? 0);
+                    const scoreColor = score >= 85 ? 'var(--go)' : score >= 70 ? 'var(--cond)' : 'var(--nogo)';
                     return (
                       <tr key={d.driverId}>
                         <td className="px-3 py-2 font-mono text-ink-3 text-[11px]">{i + 1}</td>
@@ -175,9 +181,9 @@ export default function HSEConsolePage() {
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <div className="w-[60px] h-[5px] rounded-full bg-bg-3 overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${d.overallScore}%`, background: scoreColor }} />
+                              <div className="h-full rounded-full" style={{ width: `${score}%`, background: scoreColor }} />
                             </div>
-                            <span className="font-mono text-[11px] font-medium" style={{ color: scoreColor }}>{d.overallScore}</span>
+                            <span className="font-mono text-[11px] font-medium" style={{ color: scoreColor }}>{score > 0 ? score.toFixed(1) : '—'}</span>
                           </div>
                         </td>
                         <td className="px-3 py-2">
