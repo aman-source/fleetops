@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fleetops — Journey, Fleet & HSE Control Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #0a0d12; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  #root { width: 100vw; height: 100vh; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="control-tower-map.jsx"></script>
+<script type="text/babel" src="control-tower-journey.jsx"></script>
+<script type="text/babel" src="driver-app.jsx"></script>
+<script type="text/babel" src="passenger-app.jsx"></script>
+<script type="text/babel" src="ops-consoles.jsx"></script>
+<script type="text/babel" src="ops-consoles-2.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "mood": "editorial",
+  "palette": "desert",
+  "mapStyle": "light"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Apply mood + palette as data attributes on <html> so CSS variables cascade
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-mood', t.mood);
+    document.documentElement.setAttribute('data-palette', t.palette);
+  }, [t.mood, t.palette]);
+
+  const ctx = React.useMemo(() => ({
+    mood: t.mood, palette: t.palette, mapStyle: t.mapStyle,
+  }), [t.mood, t.palette, t.mapStyle]);
+
+  return (
+    <FleetopsTweakCtx.Provider value={ctx}>
+      <DesignCanvas>
+        <DCSection id="control-tower" title="Control Tower — Journey Manager"
+          subtitle="The web command surface. Live fleet visibility, journey planning with the Go/No-Go gate, and in-flight monitoring.">
+          <DCArtboard id="ct-map" label="01 · Live fleet map" width={1280} height={820}>
+            <CTLiveMap />
+          </DCArtboard>
+          <DCArtboard id="ct-composer" label="02 · Journey composer · Go/No-Go gates" width={1280} height={820}>
+            <CTJourneyComposer />
+          </DCArtboard>
+          <DCArtboard id="ct-active" label="03 · Active journey · live track" width={1280} height={820}>
+            <CTActiveJourney />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="driver" title="Driver Mobile App"
+          subtitle="Driver-facing app: assigned trips, pre-trip checklist, NFC authentication, live trip, defect/SOS reporting.">
+          <DCArtboard id="drv-today" label="04 · Today · assigned trip" width={420} height={860}>
+            <DrvToday />
+          </DCArtboard>
+          <DCArtboard id="drv-check" label="05 · Pre-trip checklist" width={420} height={860}>
+            <DrvChecklist />
+          </DCArtboard>
+          <DCArtboard id="drv-nfc" label="06 · NFC authentication" width={420} height={860}>
+            <DrvNFC />
+          </DCArtboard>
+          <DCArtboard id="drv-trip" label="07 · In-trip · live" width={420} height={860}>
+            <DrvInTrip />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="passenger" title="Passenger Logistics App"
+          subtitle="Employee pickup/drop requests, planner pooling, live trip visibility, boarding validation.">
+          <DCArtboard id="pax-request" label="08 · Request pickup" width={420} height={860}>
+            <PaxRequest />
+          </DCArtboard>
+          <DCArtboard id="pax-live" label="09 · My trip · live" width={420} height={860}>
+            <PaxLive />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="ops" title="Specialist Consoles"
+          subtitle="Logistics Planner Hub, Maintenance workshop, HSE console, GM/Ops KPIs, Vehicle Master, Admin configuration.">
+          <DCArtboard id="planner" label="10 · Logistics planner hub" width={1280} height={820}>
+            <PlannerHub />
+          </DCArtboard>
+          <DCArtboard id="workshop" label="11 · Maintenance workshop" width={1280} height={820}>
+            <MaintWorkshop />
+          </DCArtboard>
+          <DCArtboard id="workorder" label="12 · Work order · Go/No-Go release" width={1280} height={820}>
+            <MaintWorkOrder />
+          </DCArtboard>
+          <DCArtboard id="hse" label="13 · HSE console · panic event" width={1280} height={820}>
+            <HSEConsole />
+          </DCArtboard>
+          <DCArtboard id="gm" label="14 · GM/Ops KPI dashboard" width={1280} height={820}>
+            <GMDashboard />
+          </DCArtboard>
+          <DCArtboard id="vehicle" label="15 · Vehicle master profile" width={1280} height={820}>
+            <VehicleProfile />
+          </DCArtboard>
+          <DCArtboard id="admin" label="16 · Admin · workflow config" width={1280} height={820}>
+            <AdminConfig />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Fleetops · Tweaks">
+        <TweakSection label="Mood" />
+        <TweakRadio value={t.mood}
+          options={[
+            { value: 'industrial', label: 'Industrial' },
+            { value: 'editorial',  label: 'Editorial' },
+            { value: 'warroom',    label: 'War room' },
+          ]}
+          onChange={(v) => setTweak('mood', v)} />
+        <div style={{ font: '10px/1.3 ui-sans-serif,system-ui', color: '#8a8270', padding: '0 4px 6px', letterSpacing: '0.04em' }}>
+          {t.mood === 'industrial' && 'Charcoal control-room · cool blue accents · the operator default.'}
+          {t.mood === 'editorial'  && 'Warm cream surfaces · ink-blue accents · clean review surface for execs.'}
+          {t.mood === 'warroom'    && 'Pure black · amber accents · pulsing No-Go alarms · all-hands-on-deck.'}
+        </div>
+
+        <TweakSection label="Palette" />
+        <TweakRadio value={t.palette}
+          options={[
+            { value: 'cool',   label: 'Cool' },
+            { value: 'desert', label: 'Desert' },
+            { value: 'cyber',  label: 'Cyber' },
+          ]}
+          onChange={(v) => setTweak('palette', v)} />
+        <div style={{ font: '10px/1.3 ui-sans-serif,system-ui', color: '#8a8270', padding: '0 4px 6px', letterSpacing: '0.04em' }}>
+          {t.palette === 'cool'   && 'Blue / green / amber / red · the safety-grade canonical.'}
+          {t.palette === 'desert' && 'Terracotta / sage / sand / clay · grounded for Omani field ops.'}
+          {t.palette === 'cyber'  && 'Cyan / mint / amber / hot-pink · neon HUD energy.'}
+        </div>
+
+        <TweakSection label="Maps" />
+        <TweakRadio value={t.mapStyle}
+          options={[
+            { value: 'dark',      label: 'Dark' },
+            { value: 'light',     label: 'Daylight' },
+            { value: 'schematic', label: 'Schematic' },
+          ]}
+          onChange={(v) => setTweak('mapStyle', v)} />
+        <div style={{ font: '10px/1.3 ui-sans-serif,system-ui', color: '#8a8270', padding: '0 4px 6px', letterSpacing: '0.04em' }}>
+          {t.mapStyle === 'dark'      && 'CartoDB Dark Matter · real Omani terrain · night-ops feel.'}
+          {t.mapStyle === 'light'     && 'CartoDB Voyager · real roads & labels · daytime planning.'}
+          {t.mapStyle === 'schematic' && 'No real tiles · stylized vector grid · presentation mode.'}
+        </div>
+      </TweaksPanel>
+    </FleetopsTweakCtx.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

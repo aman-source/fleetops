@@ -1,0 +1,427 @@
+/* Fleetops design system — industrial control-room
+   Charcoal panels · IBM Plex · safety-grade status colors */
+
+:root {
+  /* Surfaces */
+  --bg-0: #0a0d12;
+  --bg-1: #0f141b;
+  --bg-2: #151b24;
+  --bg-3: #1c2430;
+  --bg-4: #242d3a;
+  --panel: #11161e;
+  --surface: #151b24;
+  --raised: #1c2430;
+
+  /* Lines */
+  --line: #232c39;
+  --line-soft: #1b232e;
+  --line-strong: #2e3a4a;
+
+  /* Text */
+  --ink-0: #f1f4f8;
+  --ink-1: #d6dce5;
+  --ink-2: #95a0b0;
+  --ink-3: #5e6776;
+  --ink-4: #3e4654;
+
+  /* Brand / primary */
+  --primary: #4a90ff;
+  --primary-2: #2f6fe0;
+  --primary-soft: rgba(74,144,255,0.14);
+
+  /* Safety semantics */
+  --go: #1ec991;
+  --go-soft: rgba(30,201,145,0.14);
+  --cond: #f5a524;
+  --cond-soft: rgba(245,165,36,0.14);
+  --nogo: #ef4747;
+  --nogo-soft: rgba(239,71,71,0.14);
+  --info: #4a90ff;
+  --info-soft: rgba(74,144,255,0.14);
+  --neutral: #6b7689;
+  --neutral-soft: rgba(107,118,137,0.14);
+
+  /* Accent for charts */
+  --cyan: #38d4d4;
+  --violet: #a78bfa;
+  --pink: #f472b6;
+
+  /* Type */
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Radii */
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 10px;
+  --r-4: 14px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.02) inset, 0 0 0 1px var(--line);
+  --shadow-2: 0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px var(--line);
+}
+
+* { box-sizing: border-box; }
+
+.fo {
+  font-family: var(--font-sans);
+  color: var(--ink-1);
+  background: var(--bg-0);
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+.fo, .fo * { font-family: var(--font-sans); }
+.fo .mono, .fo code, .fo .mono * { font-family: var(--font-mono); font-feature-settings: 'zero'; }
+
+/* ───────── Layout primitives ───────── */
+/* .row is for layout — default to stretch so flex:1 children can fill height.
+   Use .row.center (or inline alignItems) when you want vertical centering. */
+.fo .row, .fo.row { display: flex; align-items: stretch; }
+.fo .col, .fo.col { display: flex; flex-direction: column; }
+.fo .row.middle, .fo.row.middle { align-items: center; }
+.fo .gap-4 { gap: 4px; } .fo .gap-6 { gap: 6px; } .fo .gap-8 { gap: 8px; }
+.fo .gap-10 { gap: 10px; } .fo .gap-12 { gap: 12px; } .fo .gap-16 { gap: 16px; }
+.fo .gap-20 { gap: 20px; } .fo .gap-24 { gap: 24px; }
+.fo .grow { flex: 1; min-width: 0; }
+.fo .between { justify-content: space-between; }
+.fo .center { justify-content: center; align-items: center; }
+.fo .baseline { align-items: baseline; }
+.fo .end { justify-content: flex-end; }
+
+/* ───────── Panels & cards ───────── */
+.fo .panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+}
+.fo .card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+}
+.fo .raised {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+}
+.fo hr.sep {
+  border: 0; height: 1px; background: var(--line-soft); margin: 0;
+}
+
+/* ───────── Typography ───────── */
+.fo .h1 { font-size: 20px; font-weight: 600; color: var(--ink-0); letter-spacing: -0.01em; }
+.fo .h2 { font-size: 16px; font-weight: 600; color: var(--ink-0); letter-spacing: -0.005em; }
+.fo .h3 { font-size: 13px; font-weight: 600; color: var(--ink-0); }
+.fo .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.fo .display { font-size: 28px; font-weight: 500; color: var(--ink-0); letter-spacing: -0.02em; font-family: var(--font-mono); }
+.fo .display-lg { font-size: 40px; font-weight: 500; color: var(--ink-0); letter-spacing: -0.02em; font-family: var(--font-mono); }
+.fo .muted { color: var(--ink-2); }
+.fo .dim { color: var(--ink-3); }
+.fo .label {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500;
+}
+.fo .meta {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+
+/* ───────── Status pills ───────── */
+.fo .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 500; line-height: 18px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono); letter-spacing: 0.01em;
+}
+.fo .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.fo .pill.go { color: var(--go); background: var(--go-soft); border-color: rgba(30,201,145,0.25); }
+.fo .pill.cond { color: var(--cond); background: var(--cond-soft); border-color: rgba(245,165,36,0.25); }
+.fo .pill.nogo { color: var(--nogo); background: var(--nogo-soft); border-color: rgba(239,71,71,0.3); }
+.fo .pill.info { color: var(--info); background: var(--info-soft); border-color: rgba(74,144,255,0.25); }
+.fo .pill.neutral { color: var(--ink-2); background: var(--neutral-soft); border-color: rgba(107,118,137,0.25); }
+.fo .pill.solid-go { color: #08251c; background: var(--go); border-color: var(--go); }
+.fo .pill.solid-nogo { color: #2a0c0c; background: var(--nogo); border-color: var(--nogo); }
+
+/* ───────── Buttons ───────── */
+.fo .btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; height: 28px;
+  background: var(--bg-3); color: var(--ink-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; user-select: none;
+  font-family: var(--font-sans);
+}
+.fo .btn:hover { background: var(--bg-4); }
+.fo .btn.lg { height: 36px; padding: 8px 16px; font-size: 13px; }
+.fo .btn.sm { height: 24px; padding: 4px 10px; font-size: 11px; }
+.fo .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+.fo .btn.primary:hover { background: var(--primary-2); }
+.fo .btn.danger { background: var(--nogo); border-color: var(--nogo); color: white; }
+.fo .btn.go { background: var(--go); border-color: var(--go); color: #08251c; }
+.fo .btn.ghost { background: transparent; border-color: transparent; }
+.fo .btn.ghost:hover { background: var(--bg-3); }
+
+/* ───────── Inputs ───────── */
+.fo .input {
+  height: 32px; padding: 0 10px;
+  background: var(--bg-2); color: var(--ink-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  font-family: var(--font-sans); font-size: 12px;
+  outline: none;
+}
+.fo .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.fo .field-label { font-size: 11px; color: var(--ink-2); margin-bottom: 4px; display: block; }
+
+/* ───────── Tables ───────── */
+.fo table.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fo .tbl th {
+  text-align: left; font-weight: 500;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  position: sticky; top: 0;
+}
+.fo .tbl td {
+  padding: 10px 12px; border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-1); vertical-align: middle;
+}
+.fo .tbl tr:hover td { background: rgba(255,255,255,0.015); }
+
+/* ───────── Sidebar nav ───────── */
+.fo .nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: var(--r-2);
+  color: var(--ink-2); font-size: 12.5px; cursor: pointer;
+  user-select: none;
+}
+.fo .nav-item:hover { background: var(--bg-2); color: var(--ink-1); }
+.fo .nav-item.active { background: var(--bg-3); color: var(--ink-0); }
+.fo .nav-item .nav-icon { width: 16px; height: 16px; opacity: 0.85; flex-shrink: 0; }
+
+/* ───────── Map placeholder ───────── */
+.fo .map-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 30% 20%, rgba(74,144,255,0.06), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(30,201,145,0.05), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(255,255,255,0.025) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(255,255,255,0.025) 39px 40px),
+    #0c1118;
+}
+.fo .map-bg.terrain {
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 30%, rgba(170,130,80,0.08), transparent 65%),
+    radial-gradient(ellipse 60% 40% at 70% 60%, rgba(60,100,140,0.07), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 90%, rgba(170,130,80,0.05), transparent 65%),
+    repeating-linear-gradient(0deg, transparent 0 49px, rgba(255,255,255,0.02) 49px 50px),
+    repeating-linear-gradient(90deg, transparent 0 49px, rgba(255,255,255,0.02) 49px 50px),
+    #0a0e14;
+}
+
+/* ───────── Progress bars ───────── */
+.fo .bar { height: 4px; background: var(--bg-3); border-radius: 100px; overflow: hidden; }
+.fo .bar > div { height: 100%; background: var(--primary); border-radius: 100px; }
+.fo .bar.go > div { background: var(--go); }
+.fo .bar.cond > div { background: var(--cond); }
+.fo .bar.nogo > div { background: var(--nogo); }
+
+/* ───────── Checklist ───────── */
+.fo .check-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-2);
+  background: var(--bg-2); border: 1px solid var(--line-soft);
+}
+.fo .check-box {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--ink-3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.fo .check-box.checked { background: var(--go); border-color: var(--go); color: #08251c; }
+.fo .check-box.fail { background: var(--nogo); border-color: var(--nogo); color: white; }
+
+/* ───────── Avatar ───────── */
+.fo .avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: 11px; font-weight: 600;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* ───────── Leaflet integration ───────── */
+.leaflet-container { background: #0c1118 !important; outline: none; font-family: var(--font-sans) !important; }
+.leaflet-container.light { background: #f6f5f1 !important; }
+.fo-leaflet-marker { background: transparent !important; border: none !important; overflow: visible !important; }
+.fo-leaflet-pin {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid #fff;
+}
+.fo-leaflet-pin.go        { background: #1ec991; box-shadow: 0 0 0 4px rgba(30,201,145,0.22), 0 0 12px rgba(30,201,145,0.55); }
+.fo-leaflet-pin.cond      { background: #f5a524; box-shadow: 0 0 0 4px rgba(245,165,36,0.22), 0 0 12px rgba(245,165,36,0.55); }
+.fo-leaflet-pin.nogo      { background: #ef4747; box-shadow: 0 0 0 4px rgba(239,71,71,0.25), 0 0 12px rgba(239,71,71,0.6); }
+.fo-leaflet-pin.active    { background: #4a90ff; box-shadow: 0 0 0 4px rgba(74,144,255,0.25), 0 0 14px rgba(74,144,255,0.65); }
+.fo-leaflet-pin.completed { background: #1ec991; box-shadow: 0 0 0 3px rgba(30,201,145,0.18); }
+.fo-leaflet-pin.site {
+  width: 8px; height: 8px; background: transparent;
+  border: 2px solid rgba(255,255,255,0.7); box-shadow: none;
+}
+.fo-leaflet-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.85); text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9);
+  white-space: nowrap; pointer-events: none;
+}
+.leaflet-container.light .fo-leaflet-label { color: #15181d; text-shadow: 0 0 6px rgba(246,245,241,0.95), 0 0 3px rgba(246,245,241,0.95); }
+
+.fo-leaflet-pop {
+  background: rgba(10,13,18,0.95); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; white-space: nowrap;
+  position: absolute; left: 14px; top: -8px; min-width: 160px;
+  font-family: var(--font-sans);
+}
+.fo-leaflet-pop.primary { border-color: var(--primary); }
+.fo-leaflet-pop.nogo    { border-color: var(--nogo); }
+.fo .light {
+  background: #f6f5f1;
+  color: #1a1d22;
+}
+.fo .light .pill.go { background: rgba(30,180,130,0.14); color: #056b48; border-color: rgba(30,180,130,0.3); }
+.fo .light .pill.cond { background: rgba(220,140,20,0.14); color: #8c5500; border-color: rgba(220,140,20,0.3); }
+.fo .light .pill.nogo { background: rgba(220,40,40,0.14); color: #9a1212; border-color: rgba(220,40,40,0.3); }
+
+/* ───────── Tweak: MOOD variants ───────── */
+[data-mood="editorial"] {
+  --bg-0: #f6f4ee;
+  --bg-1: #fbfaf6;
+  --bg-2: #fff;
+  --bg-3: #f0ede4;
+  --bg-4: #e8e4d8;
+  --panel: #fbfaf6;
+  --surface: #fff;
+  --raised: #fff;
+  --line: #e2dccb;
+  --line-soft: #ece7d8;
+  --line-strong: #cdc4ad;
+  --ink-0: #15181d;
+  --ink-1: #2a2f37;
+  --ink-2: #5e6776;
+  --ink-3: #8a8270;
+  --ink-4: #cdc4ad;
+  --primary: #2a4a8f;
+  --primary-2: #1c3870;
+  --primary-soft: rgba(42,74,143,0.10);
+  --info: #2a4a8f;
+  --info-soft: rgba(42,74,143,0.10);
+  --go: #1a7a52;
+  --go-soft: rgba(26,122,82,0.10);
+  --cond: #9a5a00;
+  --cond-soft: rgba(154,90,0,0.10);
+  --nogo: #b81717;
+  --nogo-soft: rgba(184,23,23,0.10);
+  --neutral-soft: rgba(60,67,77,0.08);
+}
+[data-mood="editorial"] .fo { background: var(--bg-0); color: var(--ink-1); }
+[data-mood="editorial"] .fo .map-bg, [data-mood="editorial"] .fo .map-bg.terrain {
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 30%, rgba(180,150,100,0.25), transparent 65%),
+    radial-gradient(ellipse 60% 40% at 70% 60%, rgba(120,150,180,0.18), transparent 70%),
+    repeating-linear-gradient(0deg, transparent 0 49px, rgba(60,40,20,0.05) 49px 50px),
+    repeating-linear-gradient(90deg, transparent 0 49px, rgba(60,40,20,0.05) 49px 50px),
+    #e8e1cf;
+}
+[data-mood="editorial"] .leaflet-container { background: #ede6d5 !important; }
+[data-mood="editorial"] .fo-leaflet-label { color: #15181d; text-shadow: 0 0 6px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.9); }
+[data-mood="editorial"] .fo-leaflet-pin.site { border-color: rgba(20,20,20,0.5); }
+[data-mood="editorial"] .fo-leaflet-pop {
+  background: rgba(255,255,255,0.95); border-color: var(--line); color: #15181d;
+}
+[data-mood="editorial"] .fo-leaflet-pop div { color: #15181d !important; }
+
+/* WAR ROOM — pure black, amber alarms, pulsing nogo */
+[data-mood="warroom"] {
+  --bg-0: #050608;
+  --bg-1: #08090c;
+  --bg-2: #0e1014;
+  --bg-3: #161a22;
+  --bg-4: #20262f;
+  --panel: #08090c;
+  --surface: #0e1014;
+  --raised: #161a22;
+  --line: #1d232e;
+  --line-soft: #14181f;
+  --line-strong: #2a323e;
+  --primary: #ffb020;
+  --primary-2: #d99000;
+  --primary-soft: rgba(255,176,32,0.14);
+  --info: #ffb020;
+  --info-soft: rgba(255,176,32,0.14);
+  --go: #1ec991;
+  --cond: #ffb020;
+  --cond-soft: rgba(255,176,32,0.18);
+  --nogo: #ff2d2d;
+  --nogo-soft: rgba(255,45,45,0.18);
+}
+[data-mood="warroom"] .fo .pill.nogo {
+  animation: warroomNogoPulse 1.4s ease-in-out infinite;
+}
+@keyframes warroomNogoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,45,45,0); }
+  50% { box-shadow: 0 0 0 4px rgba(255,45,45,0.2); }
+}
+[data-mood="warroom"] .fo .panel,
+[data-mood="warroom"] .fo .card,
+[data-mood="warroom"] .fo .raised {
+  border-color: var(--line);
+}
+[data-mood="warroom"] .fo-leaflet-pin.nogo {
+  animation: warroomNogoPulse 1.4s ease-in-out infinite;
+}
+
+/* ───────── Tweak: PALETTE variants (cool default) ───────── */
+[data-palette="desert"] {
+  --primary: #d97757;
+  --primary-2: #c46a4a;
+  --primary-soft: rgba(217,119,87,0.14);
+  --info: #d97757;
+  --info-soft: rgba(217,119,87,0.14);
+  --go: #7aa05b;
+  --go-soft: rgba(122,160,91,0.16);
+  --cond: #e0a738;
+  --cond-soft: rgba(224,167,56,0.16);
+  --nogo: #c0392b;
+  --nogo-soft: rgba(192,57,43,0.16);
+  --cyan: #d97757;
+  --violet: #b07a48;
+}
+[data-palette="cyber"] {
+  --primary: #22d3ee;
+  --primary-2: #06b6d4;
+  --primary-soft: rgba(34,211,238,0.14);
+  --info: #22d3ee;
+  --info-soft: rgba(34,211,238,0.14);
+  --go: #14eba0;
+  --go-soft: rgba(20,235,160,0.16);
+  --cond: #fbbf24;
+  --cond-soft: rgba(251,191,36,0.16);
+  --nogo: #ff3d8a;
+  --nogo-soft: rgba(255,61,138,0.18);
+  --violet: #c084fc;
+  --pink: #ff3d8a;
+}
+
+/* Palette-aware Leaflet pin colors */
+[data-palette="desert"] .fo-leaflet-pin.active    { background: #d97757; box-shadow: 0 0 0 4px rgba(217,119,87,0.25), 0 0 14px rgba(217,119,87,0.65); }
+[data-palette="desert"] .fo-leaflet-pin.go        { background: #7aa05b; box-shadow: 0 0 0 4px rgba(122,160,91,0.22), 0 0 12px rgba(122,160,91,0.55); }
+[data-palette="desert"] .fo-leaflet-pin.cond      { background: #e0a738; box-shadow: 0 0 0 4px rgba(224,167,56,0.22), 0 0 12px rgba(224,167,56,0.55); }
+[data-palette="desert"] .fo-leaflet-pin.nogo      { background: #c0392b; box-shadow: 0 0 0 4px rgba(192,57,43,0.25), 0 0 12px rgba(192,57,43,0.6); }
+[data-palette="cyber"]  .fo-leaflet-pin.active    { background: #22d3ee; box-shadow: 0 0 0 4px rgba(34,211,238,0.25), 0 0 14px rgba(34,211,238,0.7); }
+[data-palette="cyber"]  .fo-leaflet-pin.go        { background: #14eba0; box-shadow: 0 0 0 4px rgba(20,235,160,0.22), 0 0 12px rgba(20,235,160,0.6); }
+[data-palette="cyber"]  .fo-leaflet-pin.nogo      { background: #ff3d8a; box-shadow: 0 0 0 4px rgba(255,61,138,0.28), 0 0 14px rgba(255,61,138,0.7); }
