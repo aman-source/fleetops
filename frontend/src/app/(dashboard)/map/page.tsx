@@ -8,13 +8,12 @@ import { subscribe } from '@/lib/ws';
 import { useLayout } from '@/stores/layout';
 import { Glyph, Spark } from '@/components/ui/glyph';
 import { Pill } from '@/components/ui/pill';
+import type { VehicleLive, JourneyRoute, VehicleTrail } from '@/components/map/fleet-map';
 
 const FleetMap = dynamic(() => import('@/components/map/fleet-map'), { ssr: false });
 
-interface VehicleLive {
-  vehicleId: string; plateNo?: string; lat: number; lon: number; speed: number; heading: number;
-  ignition: boolean; status: string; lastSeen: string; online: boolean;
-}
+// Re-export type for local use — actual interface is in fleet-map.tsx
+type VehicleLiveLocal = VehicleLive;
 
 interface EventItem {
   id: string; eventType: string; severity: string; vehicleId: string;
@@ -70,14 +69,29 @@ function eventDetail(type: string, details: Record<string, unknown> | null, spee
 }
 
 export default function MapPage() {
-  const [liveVehicles, setLiveVehicles] = useState<VehicleLive[]>([]);
+  const [liveVehicles, setLiveVehicles] = useState<VehicleLiveLocal[]>([]);
   const { rightPanelOpen, toggleRightPanel } = useLayout();
   const [mapTab, setMapTab] = useState('Active journeys');
+  const [showIsochrones, setShowIsochrones] = useState(false);
 
   // Live fleet positions
   const { data: liveData } = useQuery({
     queryKey: ['fleet-live'],
-    queryFn: async () => unwrap<VehicleLive[]>(await api.get('/fleet/live')),
+    queryFn: async () => unwrap<VehicleLiveLocal[]>(await api.get('/fleet/live')),
+    refetchInterval: 30_000,
+  });
+
+  // Journey routes (waypoints for polylines)
+  const { data: routesData } = useQuery({
+    queryKey: ['journeys-map-data'],
+    queryFn: async () => unwrap<JourneyRoute[]>(await api.get('/journeys/map-data')),
+    refetchInterval: 60_000,
+  });
+
+  // GPS trails (last 30 min per online vehicle)
+  const { data: trailsData } = useQuery({
+    queryKey: ['fleet-trails'],
+    queryFn: async () => unwrap<VehicleTrail[]>(await api.get('/fleet/trails')),
     refetchInterval: 30_000,
   });
 
@@ -91,6 +105,36 @@ export default function MapPage() {
   const { data: readiness } = useQuery({
     queryKey: ['analytics-readiness'],
     queryFn: async () => unwrap<ReadinessItem[]>(await api.get('/analytics/fleet-readiness')),
+  });
+
+  // Isochrone coverage zones — 30-min drive reach per online vehicle
+  const { data: isochroneData } = useQuery({
+    queryKey: ['isochrones', liveVehicles.filter(v => v.online && v.lat && v.lon).map(v => v.vehicleId).join(',')],
+    queryFn: async () => {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (!token) return [];
+      const online = liveVehicles
+        .filter((v: VehicleLiveLocal) => v.online && v.lat && v.lon)
+        .slice(0, 10);
+      const results = await Promise.allSettled(
+        online.map(async (v: VehicleLiveLocal) => {
+          const res = await fetch(
+            `https://api.mapbox.com/isochrone/v1/mapbox/driving/${v.lon},${v.lat}?contours_minutes=30&polygons=true&access_token=${token}`,
+          );
+          if (!res.ok) return null;
+          const data = await res.json() as { features: Array<{ type: string; geometry: { type: string; coordinates: unknown }; properties: unknown }> };
+          const feature = data.features?.[0];
+          if (!feature) return null;
+          return { vehicleId: v.vehicleId, feature };
+        }),
+      );
+      return results
+        .filter((r): r is PromiseFulfilledResult<{ vehicleId: string; feature: { type: string; geometry: { type: string; coordinates: unknown }; properties: unknown } } | null> => r.status === 'fulfilled' && r.value != null)
+        .map(r => r.value!);
+    },
+    enabled: showIsochrones,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 4 * 60 * 1000,
   });
 
   // Recent events
@@ -111,7 +155,7 @@ export default function MapPage() {
 
   useEffect(() => {
     const unsub = subscribe('fleet:live', (update) => {
-      const v = update as VehicleLive;
+      const v = update as VehicleLiveLocal;
       if (!v?.vehicleId) return;
       setLiveVehicles((prev) => {
         const idx = prev.findIndex((x) => x.vehicleId === v.vehicleId);
@@ -188,8 +232,8 @@ export default function MapPage() {
         <div className="flex-1 flex flex-col bg-panel border border-line rounded-[10px] overflow-hidden min-w-0 relative">
           <div className="flex items-center justify-between px-3 py-2 border-b border-line shrink-0 bg-bg-1/80 backdrop-blur-sm z-[1]">
             <div className="flex gap-0.5">
-              {['All fleet', 'Active journeys', 'No-Go', 'Geofences', 'Heat'].map(t => (
-                <button key={t} onClick={() => setMapTab(t)}
+              {['All fleet', 'Active journeys', 'No-Go', 'Geofences', 'Heat', 'Coverage'].map(t => (
+                <button key={t} onClick={() => { setMapTab(t); setShowIsochrones(t === 'Coverage'); }}
                   className={`text-[11.5px] px-2.5 py-1 rounded-full transition-colors ${mapTab === t ? 'bg-bg-3 text-ink-0 font-medium' : 'text-ink-2 hover:text-ink-0'}`}>{t}</button>
               ))}
             </div>
@@ -202,7 +246,7 @@ export default function MapPage() {
           </div>
 
           <div className="flex-1 relative">
-            <FleetMap vehicles={liveVehicles} />
+            <FleetMap vehicles={liveVehicles} routes={routesData ?? []} trails={trailsData ?? []} isochrones={showIsochrones ? (isochroneData ?? []) : []} />
             {/* Legend */}
             <div className="absolute bottom-3 left-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[8px] px-3 py-2 z-[400]">
               <div className="text-[9px] uppercase tracking-[0.08em] text-ink-3 font-medium mb-1.5">Legend</div>

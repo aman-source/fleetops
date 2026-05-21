@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, and, lt, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, lt, gte, lte, desc, inArray } from 'drizzle-orm';
 import { authenticate } from '../../shared/middleware/authenticate.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess } from '../../shared/response.js';
+import { exportCsv } from '../../shared/csv.js';
 import { db } from '../../infra/db/client.js';
 import { events } from '../../infra/db/schema/events.js';
 import { telemetryLogs } from '../../infra/db/schema/telemetry.js';
@@ -53,6 +54,22 @@ export async function ivmsRoutes(app: FastifyInstance) {
 
   // GET /events — paginated event list from Postgres
   app.get('/events', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    if (q.format === 'csv') {
+      const query = eventQuerySchema.parse({ ...q, limit: 50000 });
+      const conditions = [eq(events.orgId, request.tenantId)];
+      if (query.vehicleId) conditions.push(eq(events.vehicleId, query.vehicleId));
+      if (query.journeyId) conditions.push(eq(events.journeyId, query.journeyId));
+      if (query.eventType) conditions.push(eq(events.eventType, query.eventType));
+      if (query.severity) conditions.push(eq(events.severity, query.severity));
+      if (query.from) conditions.push(gte(events.recordedAt, new Date(query.from)));
+      if (query.to) conditions.push(lte(events.recordedAt, new Date(query.to)));
+      const rows = await db.select().from(events).where(and(...conditions)).orderBy(desc(events.recordedAt)).limit(query.limit);
+      return exportCsv(reply, ['Event Type', 'Severity', 'Vehicle', 'Driver', 'Lat', 'Lon', 'Recorded At'],
+        rows as Record<string, unknown>[],
+        'events.csv',
+        { 'Event Type': 'eventType', 'Severity': 'severity', 'Vehicle': 'vehicleId', 'Driver': 'driverId', 'Lat': 'lat', 'Lon': 'lon', 'Recorded At': 'recordedAt' });
+    }
     const query = eventQuerySchema.parse(request.query);
     const conditions = [eq(events.orgId, request.tenantId)];
 
@@ -92,6 +109,31 @@ export async function ivmsRoutes(app: FastifyInstance) {
       .limit(query.limit);
 
     return sendSuccess(reply, rows);
+  });
+
+  // GET /fleet/trails — last 30 min GPS trail for all online vehicles (for map)
+  app.get('/fleet/trails', async (request, reply) => {
+    const states = await getAllLiveStates();
+    if (!states.length) return sendSuccess(reply, []);
+
+    const vehicleIds = states.filter(s => !isStale(s.lastSeen)).map(s => s.vehicleId);
+    if (!vehicleIds.length) return sendSuccess(reply, []);
+
+    const since = new Date(Date.now() - 30 * 60 * 1000);
+    const rows = await db
+      .select({ vehicleId: telemetryLogs.vehicleId, lat: telemetryLogs.lat, lon: telemetryLogs.lon, recordedAt: telemetryLogs.recordedAt })
+      .from(telemetryLogs)
+      .where(and(inArray(telemetryLogs.vehicleId, vehicleIds), gte(telemetryLogs.recordedAt, since)))
+      .orderBy(telemetryLogs.recordedAt)
+      .limit(vehicleIds.length * 60);
+
+    const grouped = rows.reduce<Record<string, { lat: string | null; lon: string | null; recordedAt: Date }[]>>((acc, r) => {
+      if (!acc[r.vehicleId]) acc[r.vehicleId] = [];
+      acc[r.vehicleId].push({ lat: r.lat, lon: r.lon, recordedAt: r.recordedAt });
+      return acc;
+    }, {});
+
+    return sendSuccess(reply, Object.entries(grouped).map(([vehicleId, points]) => ({ vehicleId, points })));
   });
 
   // GET /ws/stats — WebSocket connection stats (admin only)

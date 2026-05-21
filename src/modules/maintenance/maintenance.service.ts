@@ -1,4 +1,4 @@
-import { eq, and, isNull, lt, desc } from 'drizzle-orm';
+import { eq, and, isNull, lt, desc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import {
   workOrders, workOrderParts, workOrderPhotos, workOrderActivity, tires,
@@ -7,14 +7,27 @@ import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { NotFoundError, ConflictError, BadRequestError } from '../../shared/errors.js';
 import { paginationMeta } from '../../shared/pagination.js';
 import { uploadFile } from '../../infra/storage/s3.js';
-import { getQueue } from '../../infra/queue/bull.js';
+import { stripExif } from '../../shared/image.js';
+import { getQueue, createWorker } from '../../infra/queue/bull.js';
 import type {
   CreateWOInput, UpdateWOInput, ReleaseInput, AddPartInput,
   CreateTireInput, UpdateTireInput,
 } from './maintenance.schema.js';
 
-let woCounter = 12000;
-function generateWONumber(): string {
+let woCounter = 0;
+let woCounterInitialized = false;
+
+async function generateWONumber(): Promise<string> {
+  if (!woCounterInitialized) {
+    const [row] = await db.select({ maxNo: sql<string>`MAX(wo_number)` }).from(workOrders);
+    if (row?.maxNo) {
+      const numeric = parseInt(row.maxNo.replace('WO-', ''), 10);
+      woCounter = isNaN(numeric) ? 12000 : numeric;
+    } else {
+      woCounter = 12000;
+    }
+    woCounterInitialized = true;
+  }
   woCounter++;
   return `WO-${woCounter}`;
 }
@@ -58,7 +71,7 @@ export async function createWorkOrder(tenantId: string, userId: string, input: C
     .where(eq(vehicles.id, input.vehicleId));
 
   const [wo] = await db.insert(workOrders).values({
-    woNumber: generateWONumber(),
+    woNumber: await generateWONumber(),
     ...input,
     targetHours: input.targetHours != null ? String(input.targetHours) : null,
     openedBy: userId,
@@ -165,8 +178,12 @@ export async function releaseVehicle(tenantId: string, woId: string, userId: str
 /**
  * HSE co-sign approval.
  */
-export async function hseApprove(tenantId: string, woId: string, userId: string) {
-  const wo = await getWorkOrder(tenantId, woId);
+export async function hseApprove(_tenantId: string, woId: string, userId: string) {
+  // HSE approval is a cross-org safety function — look up by ID only (no tenant filter)
+  const rows = await db.select().from(workOrders)
+    .where(and(eq(workOrders.id, woId), isNull(workOrders.deletedAt))).limit(1);
+  const wo = rows[0];
+  if (!wo) throw new NotFoundError('Work Order', woId);
 
   if (wo.status !== 'hse_review') {
     throw new ConflictError(`Work order not in HSE review status (current: ${wo.status})`);
@@ -211,7 +228,8 @@ export async function addPhoto(
   await getWorkOrder(tenantId, woId);
 
   const key = `work-orders/${woId}/${Date.now()}-${file.filename}`;
-  await uploadFile(key, file.buffer, file.mimetype);
+  const cleanBuffer = await stripExif(file.buffer, file.mimetype);
+  await uploadFile(key, cleanBuffer, file.mimetype);
 
   const [photo] = await db.insert(workOrderPhotos).values({
     woId,
@@ -287,4 +305,61 @@ export async function updateTire(tenantId: string, tireId: string, input: Update
 
 async function logActivity(woId: string, userId: string, action: string, details: Record<string, unknown>) {
   await db.insert(workOrderActivity).values({ woId, userId, action, details });
+}
+
+// ═══════════════════════════════════════════
+// CONDITIONAL RELEASE WORKER
+// ═══════════════════════════════════════════
+
+/**
+ * BullMQ worker that consumes 'conditional-expiry' queue.
+ * When a vehicle's conditional release expires, auto-reverts status to no_go.
+ */
+export function startConditionalRevertWorker() {
+  const worker = createWorker<{ vehicleId: string; woId: string }>(
+    'conditional-expiry',
+    async (job) => {
+      const { vehicleId, woId } = job.data;
+
+      // Verify vehicle still in conditional status and expiry has passed
+      const rows = await db.select({
+        id: vehicles.id,
+        status: vehicles.status,
+        conditionalExpiry: vehicles.conditionalExpiry,
+      }).from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1);
+
+      const vehicle = rows[0];
+      if (!vehicle) return; // Already deleted
+      if (vehicle.status !== 'conditional') return; // Already transitioned by other means
+
+      const now = new Date();
+      if (vehicle.conditionalExpiry && vehicle.conditionalExpiry > now) return; // Expiry extended
+
+      // Flip to no_go
+      await db.update(vehicles).set({
+        status: 'no_go',
+        conditionalExpiry: null,
+        updatedAt: now,
+      }).where(and(eq(vehicles.id, vehicleId), eq(vehicles.status, 'conditional')));
+
+      // Log on the work order if it still exists
+      if (woId) {
+        const woRows = await db.select({ id: workOrders.id })
+          .from(workOrders).where(eq(workOrders.id, woId)).limit(1);
+        if (woRows[0]) {
+          await logActivity(woId, 'system', 'conditional_expired', {
+            vehicleId,
+            expiredAt: now.toISOString(),
+          });
+        }
+      }
+    },
+    { concurrency: 2 },
+  );
+
+  worker.on('failed', (job, err) => {
+    console.error(`[conditional-revert] job ${job?.id} failed:`, err);
+  });
+
+  return worker;
 }

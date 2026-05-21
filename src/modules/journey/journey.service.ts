@@ -1,16 +1,33 @@
-import { eq, and, isNull, lt, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, isNull, lt, gte, lte, desc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import { journeys, journeyPassengers, journeyWaypoints, journeyApprovals } from '../../infra/db/schema/journeys.js';
+import { checkJobOnJourneyClose } from '../jobs/jobs.service.js';
+import { checkSegmentsOnJourneyClose } from '../logistics/logistics.service.js';
 import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { NotFoundError, ConflictError, GateError, BadRequestError } from '../../shared/errors.js';
 import { paginationMeta } from '../../shared/pagination.js';
 import { evaluateAllGates, type AllGatesResult } from './gates.js';
+import { redis } from '../../infra/redis/client.js';
 import type { CreateJourneyInput, UpdateJourneyInput } from './journey.schema.js';
+import { triggerWorkflow } from '../workflows/executor.js';
+import { getDirectionsRoute, getMapMatchedTrail } from '../../shared/mapbox.js';
+import { telemetryLogs } from '../../infra/db/schema/index.js';
 
-// Journey number counter — in production use a Postgres sequence
-let journeyCounter = 4000;
+// Journey number counter — initialized from DB max on first use to survive restarts
+let journeyCounter = 0;
+let journeyCounterInitialized = false;
 
-function generateJourneyNo(): string {
+async function generateJourneyNo(): Promise<string> {
+  if (!journeyCounterInitialized) {
+    const [row] = await db.select({ maxNo: sql<string>`MAX(journey_no)` }).from(journeys);
+    if (row?.maxNo) {
+      const numeric = parseInt(row.maxNo.split('-')[2] ?? '4000', 10);
+      journeyCounter = isNaN(numeric) ? 4000 : numeric;
+    } else {
+      journeyCounter = 4000;
+    }
+    journeyCounterInitialized = true;
+  }
   journeyCounter++;
   const year = new Date().getFullYear().toString().slice(-2);
   return `JM-${year}-${String(journeyCounter).padStart(5, '0')}`;
@@ -61,7 +78,7 @@ export async function createJourney(tenantId: string, userId: string, input: Cre
   }
 
   const [journey] = await db.insert(journeys).values({
-    journeyNo: generateJourneyNo(),
+    journeyNo: await generateJourneyNo(),
     vehicleId: input.vehicleId,
     driverId: input.driverId,
     purpose: input.purpose,
@@ -167,27 +184,36 @@ export async function submitJourney(tenantId: string, journeyId: string, userId:
     });
   }
 
-  // Create approval chain
-  const hasHSEReview = gateResult.gates.some(
-    (g) => g.gateNumber === 6 && g.status === 'REVIEW',
-  );
+  const riskLevel = gateResult.riskLevel ?? 'L';
+  const riskScore = gateResult.riskScore ?? 0;
 
-  await db.insert(journeyApprovals).values([
+  // Build approval chain: submitter (auto) → journey_mgr → hse (if REVIEW/H) → gm (if H)
+  const hasHSEReview = gateResult.gates.some((g) => g.gateNumber === 6 && g.status === 'REVIEW')
+    || riskLevel === 'H';
+
+  const approvalSteps: Array<{ journeyId: string; step: string; userId?: string; decision: string; decidedAt?: Date }> = [
     { journeyId, step: 'submitter', userId, decision: 'approved', decidedAt: new Date() },
     { journeyId, step: 'journey_mgr', decision: 'pending' },
-    ...(hasHSEReview ? [{ journeyId, step: 'hse' as const, decision: 'pending' as const }] : []),
-  ]);
+    ...(hasHSEReview ? [{ journeyId, step: 'hse', decision: 'pending' }] : []),
+    ...(riskLevel === 'H' ? [{ journeyId, step: 'gm', decision: 'pending' }] : []),
+  ];
 
-  // Compute risk
-  const hseGate = gateResult.gates.find((g) => g.gateNumber === 6);
-  const riskCheck = hseGate?.checks.find((c) => c.name === 'Risk assessment');
-  const riskLevel = riskCheck?.message.match(/Risk level: ([LMH])/)?.[1] ?? 'L';
+  await db.insert(journeyApprovals).values(approvalSteps);
 
   const [updated] = await db.update(journeys).set({
     status: 'pending_approval',
     riskLevel,
+    riskScore: String(riskScore),
     updatedAt: new Date(),
   }).where(eq(journeys.id, journeyId)).returning();
+
+  // Fire workflow if configured (non-blocking — failure doesn't block submit)
+  triggerWorkflow(tenantId, 'JM-APPROVAL', 'journey', updated.id, {
+    journeyId: updated.id,
+    riskLevel,
+    riskScore,
+    submittedBy: userId,
+  }).catch(() => {});
 
   return { journey: updated, gates: gateResult };
 }
@@ -202,25 +228,36 @@ export async function approveJourney(tenantId: string, journeyId: string, userId
     throw new ConflictError(`Cannot approve journey in '${journey.status}' status`);
   }
 
-  // Find pending approval step for this role
-  const step = userRole === 'hse' ? 'hse' : 'journey_mgr';
-  const approvalRows = await db.select().from(journeyApprovals)
-    .where(and(eq(journeyApprovals.journeyId, journeyId), eq(journeyApprovals.step, step), eq(journeyApprovals.decision, 'pending')));
+  // Map role → approval step name
+  const roleToStep: Record<string, string> = {
+    journey_manager: 'journey_mgr',
+    hse: 'hse',
+    gm: 'gm',
+    admin: 'journey_mgr', // admin can approve any step
+  };
+  const step = roleToStep[userRole];
 
-  if (!approvalRows[0]) {
-    throw new ConflictError(`No pending ${step} approval for this journey`);
+  // Find next pending step this user can approve
+  const allPending = await db.select().from(journeyApprovals)
+    .where(and(eq(journeyApprovals.journeyId, journeyId), eq(journeyApprovals.decision, 'pending')))
+    .orderBy(journeyApprovals.createdAt);
+
+  const matchingStep = allPending.find(s => s.step === step) ?? (userRole === 'admin' ? allPending[0] : null);
+
+  if (!matchingStep) {
+    throw new ConflictError(`No pending approval step for role '${userRole}' on this journey`);
   }
 
   // Mark step as approved
   await db.update(journeyApprovals).set({
     userId, decision: 'approved', decidedAt: new Date(),
-  }).where(eq(journeyApprovals.id, approvalRows[0].id));
+  }).where(eq(journeyApprovals.id, matchingStep.id));
 
   // Check if all approval steps are done
-  const pendingSteps = await db.select().from(journeyApprovals)
+  const remainingPending = await db.select().from(journeyApprovals)
     .where(and(eq(journeyApprovals.journeyId, journeyId), eq(journeyApprovals.decision, 'pending')));
 
-  if (pendingSteps.length === 0) {
+  if (remainingPending.length === 0) {
     // All approved — journey is approved
     const [updated] = await db.update(journeys).set({
       status: 'approved',
@@ -228,6 +265,12 @@ export async function approveJourney(tenantId: string, journeyId: string, userId
       approvedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(journeys.id, journeyId)).returning();
+
+    await redis.publish('journey:approved', JSON.stringify({ journeyId, approvedBy: userId }));
+
+    // Generate route corridor from waypoints (async — errors logged, never thrown)
+    generateRouteCorridor(journeyId, 500).catch(() => {});
+    generateDirectionsRoute(journeyId).catch((_err: unknown) => {});
 
     return updated;
   }
@@ -289,13 +332,23 @@ export async function closeJourney(tenantId: string, journeyId: string, userId: 
     throw new ConflictError(`Cannot close journey in '${journey.status}' status`);
   }
 
+  // Check for incomplete jobs or unclosed loading segments
+  const [hasJobExceptions, hasSegmentExceptions] = await Promise.all([
+    checkJobOnJourneyClose(journeyId).catch(() => false),
+    checkSegmentsOnJourneyClose(journeyId).catch(() => false),
+  ]);
+  const finalStatus = (hasJobExceptions || hasSegmentExceptions) ? 'closed_with_exceptions' : 'closed';
+
   const [updated] = await db.update(journeys).set({
-    status: 'closed',
+    status: finalStatus,
     actualArrival: new Date(),
     closedBy: userId,
     closedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(journeys.id, journeyId)).returning();
+
+  // Fire-and-forget map matching cleanup
+  queueMapMatchingJob(journeyId, journey.vehicleId, journey.actualDeparture ?? null, new Date()).catch(() => {});
 
   return updated;
 }
@@ -340,6 +393,16 @@ export async function addPassenger(tenantId: string, journeyId: string, input: {
 }
 
 /**
+ * Get approval chain for a journey.
+ */
+export async function getApprovals(tenantId: string, journeyId: string) {
+  await getJourney(tenantId, journeyId);
+  return db.select().from(journeyApprovals)
+    .where(eq(journeyApprovals.journeyId, journeyId))
+    .orderBy(journeyApprovals.createdAt);
+}
+
+/**
  * Remove passenger from journey manifest.
  */
 export async function removePassenger(tenantId: string, journeyId: string, passengerId: string) {
@@ -358,4 +421,104 @@ export async function getPassengers(tenantId: string, journeyId: string) {
 
   return db.select().from(journeyPassengers)
     .where(eq(journeyPassengers.journeyId, journeyId));
+}
+
+/**
+ * After a journey closes, fetch its GPS telemetry, run through Mapbox Map Matching API,
+ * and store the clean road-snapped trail in journeys.snapped_trail.
+ * Called fire-and-forget — errors are silently discarded.
+ */
+async function queueMapMatchingJob(
+  journeyId: string,
+  vehicleId: string,
+  from: Date | null,
+  to: Date,
+): Promise<void> {
+  if (!from) return;
+
+  const rows = await db
+    .select({ lat: telemetryLogs.lat, lon: telemetryLogs.lon })
+    .from(telemetryLogs)
+    .where(and(
+      eq(telemetryLogs.vehicleId, vehicleId),
+      gte(telemetryLogs.recordedAt, from),
+      lte(telemetryLogs.recordedAt, to),
+    ))
+    .orderBy(telemetryLogs.recordedAt)
+    .limit(100);
+
+  const pts = rows
+    .filter(r => r.lat && r.lon)
+    .map(r => ({ lat: Number(r.lat), lon: Number(r.lon) }));
+
+  if (pts.length < 2) return;
+
+  const snapped = await getMapMatchedTrail(pts);
+  if (!snapped) return;
+
+  await db
+    .update(journeys)
+    .set({ snappedTrail: { type: 'LineString', coordinates: snapped } as unknown as null })
+    .where(eq(journeys.id, journeyId));
+}
+
+/**
+ * Generate route corridor polygon by buffering waypoint linestring.
+ * Stored in journey_route_corridors. Called async after journey approval.
+ */
+async function generateRouteCorridor(journeyId: string, bufferMeters: number = 500) {
+  const waypoints = await db.select({
+    lat: journeyWaypoints.lat,
+    lon: journeyWaypoints.lon,
+    sequence: journeyWaypoints.sequence,
+  }).from(journeyWaypoints)
+    .where(eq(journeyWaypoints.journeyId, journeyId))
+    .orderBy(journeyWaypoints.sequence);
+
+  // Need at least 2 waypoints to form a linestring
+  if (waypoints.length < 2) return;
+
+  // Delete any existing corridor for this journey
+  await db.execute(sql`DELETE FROM journey_route_corridors WHERE journey_id = ${journeyId}`);
+
+  // Build WKT linestring from ordered waypoints
+  const pointsWkt = waypoints.map(wp => `${Number(wp.lon)} ${Number(wp.lat)}`).join(', ');
+
+  await db.execute(sql`
+    INSERT INTO journey_route_corridors (journey_id, corridor, buffer_meters)
+    VALUES (
+      ${journeyId},
+      ST_Buffer(
+        ST_SetSRID(ST_GeomFromText(${'LINESTRING(' + pointsWkt + ')'}), 4326)::GEOGRAPHY,
+        ${bufferMeters}
+      )::GEOMETRY,
+      ${bufferMeters}
+    )
+  `);
+}
+
+/**
+ * Fetch road-snapped route from Mapbox Directions API and store in journeys.directions_route.
+ * Called async after journey approval — errors are logged, never thrown.
+ */
+async function generateDirectionsRoute(journeyId: string): Promise<void> {
+  const wps = await db
+    .select({ lat: journeyWaypoints.lat, lon: journeyWaypoints.lon })
+    .from(journeyWaypoints)
+    .where(eq(journeyWaypoints.journeyId, journeyId))
+    .orderBy(journeyWaypoints.sequence);
+
+  if (wps.length < 2) return;
+
+  const route = await getDirectionsRoute(
+    wps.map(w => ({ lat: Number(w.lat), lon: Number(w.lon) })),
+    'driving-traffic',
+  );
+
+  if (!route) return;
+
+  await db
+    .update(journeys)
+    .set({ directionsRoute: route.geometry as unknown as null })
+    .where(eq(journeys.id, journeyId));
 }

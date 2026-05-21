@@ -54,6 +54,7 @@ export default function FleetPage() {
           <input
             type="text"
             placeholder="Search plate, fleet no, make..."
+            data-testid="fleet-search-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-[280px] h-8 px-3 bg-surface border border-line rounded-[6px] text-ink-1 text-[12px] outline-none focus:border-primary"
@@ -94,7 +95,7 @@ export default function FleetPage() {
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>
               )}
               {vehicles?.map((v) => (
-                <tr key={v.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/fleet/${v.id}`}>
+                <tr key={v.id} data-testid={`vehicle-row-${v.plateNo.replace(/\s/g, '-')}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/fleet/${v.id}`}>
                   <td className="px-3 py-2 text-ink-0 font-medium font-mono">{v.plateNo}</td>
                   <td className="px-3 py-2 text-ink-2">{v.fleetNo ?? '—'}</td>
                   <td className="px-3 py-2 text-ink-1">{v.make} {v.model}</td>
@@ -102,7 +103,7 @@ export default function FleetPage() {
                   <td className="px-3 py-2 text-ink-2">{v.seatCount}</td>
                   <td className="px-3 py-2 text-ink-2 font-mono">{v.odometer?.toLocaleString() ?? '—'} km</td>
                   <td className="px-3 py-2">
-                    <span className={`inline-block px-2 py-0.5 rounded-[4px] text-[11px] font-medium ${STATUS_COLORS[v.status] ?? 'bg-neutral-soft text-neutral'}`}>
+                    <span data-testid={`vehicle-status-${v.plateNo.replace(/\s/g, '-')}`} className={`inline-block px-2 py-0.5 rounded-[4px] text-[11px] font-medium ${STATUS_COLORS[v.status] ?? 'bg-neutral-soft text-neutral'}`}>
                       {v.status.replace(/_/g, ' ')}
                     </span>
                   </td>

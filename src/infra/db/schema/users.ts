@@ -13,6 +13,7 @@ export const users = pgTable('users', {
   status: text('status').default('active').notNull(), // 'active' | 'locked' | 'inactive'
   mfaSecret: text('mfa_secret'),
   mfaEnabled: boolean('mfa_enabled').default(false).notNull(),
+  pushToken: text('push_token'),
   lastLogin: timestamp('last_login', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

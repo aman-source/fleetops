@@ -34,7 +34,7 @@ export const assignPoolSchema = z.object({
 });
 
 export const boardingSchema = z.object({
-  passengerId: z.string().uuid().optional(),
+  passengerId: z.string().optional(), // UUID, email, or employee ID depending on method
   method: z.enum(['nfc', 'qr', 'employee_id', 'manual']),
   lat: z.number().optional(),
   lon: z.number().optional(),

@@ -1,0 +1,90 @@
+appId: com.artech.fleetops
+---
+# Mobile.5 passenger-request.yaml
+# Persona: Passenger Amal
+# Goal: Submit pickup request and verify it appears in My Trips
+
+- launchApp:
+    clearState: true
+
+# Login as Amal
+- assertVisible:
+    id: "auth-email-input"
+- tapOn:
+    id: "auth-email-input"
+- inputText: "passenger.amal@artech.om"
+- tapOn:
+    id: "auth-password-input"
+- inputText: "Test1234!"
+- tapOn:
+    id: "auth-submit-button"
+
+- waitForAnimationToEnd
+
+# Assert passenger home loaded
+- assertVisible:
+    id: "passenger-home-screen"
+
+# Tap "Request pickup"
+- tapOn:
+    id: "passenger-request-pickup-button"
+
+# Assert request form
+- assertVisible:
+    id: "passenger-request-form"
+
+# Fill "From" location
+- tapOn:
+    id: "passenger-request-from"
+- inputText: "Camp North"
+
+# Select suggestion if autocomplete appears
+- tapOn:
+    text: "Camp North"
+
+# Fill "To" location
+- tapOn:
+    id: "passenger-request-to"
+- inputText: "Fahud Office"
+
+# Select suggestion
+- tapOn:
+    text: "Fahud Office"
+
+# Set time to tomorrow 07:00
+- tapOn:
+    id: "passenger-request-time"
+- tapOn:
+    id: "time-picker-tomorrow"
+- tapOn:
+    id: "time-picker-07-00"
+- tapOn:
+    id: "time-picker-confirm"
+
+# Submit
+- tapOn:
+    id: "passenger-request-submit"
+
+# Assert success state
+- assertVisible:
+    id: "passenger-request-success"
+
+- assertVisible:
+    text: "Request submitted"
+
+# Navigate to My Trips
+- tapOn:
+    id: "tab-my-trips"
+
+# Assert request appears with status
+- assertVisible:
+    id: "passenger-trips-screen"
+
+- assertVisible:
+    id: "passenger-request-list"
+
+# Request should be in list with pending or approved status
+- assertVisible:
+    text: "Camp North"
+- assertVisible:
+    text: "Fahud Office"

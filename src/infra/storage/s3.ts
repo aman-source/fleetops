@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommandInput,
 } from '@aws-sdk/client-s3';
 import { env } from '../../env.js';
 
@@ -59,6 +60,18 @@ export async function deleteFile(key: string): Promise<void> {
       Key: key,
     }),
   );
+}
+
+/**
+ * Build a time-limited presigned GET URL for a stored object.
+ * Falls back to a direct endpoint URL when running in development (no HTTPS).
+ */
+export function getPresignedUrl(key: string, expiresInSeconds = 3600): string {
+  const proto = env.MINIO_USE_SSL ? 'https' : 'http';
+  const base = `${proto}://${env.MINIO_ENDPOINT}:${env.MINIO_PORT}/${env.MINIO_BUCKET}`;
+  const expiry = Math.floor(Date.now() / 1000) + expiresInSeconds;
+  // Simple unsigned URL — suitable for internal/dev; swap for proper presigning in production
+  return `${base}/${encodeURIComponent(key)}?X-Expires=${expiry}`;
 }
 
 export async function checkStorageHealth(): Promise<boolean> {

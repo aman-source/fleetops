@@ -49,4 +49,10 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const data = await service.getLtiDays(request.tenantId);
     return sendSuccess(reply, data);
   });
+
+  // GET /analytics/operational-risks
+  app.get('/analytics/operational-risks', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
+    const data = await service.getOperationalRisks(request.tenantId);
+    return sendSuccess(reply, data);
+  });
 }

@@ -66,6 +66,7 @@ export default function JourneyComposerPage({ params }: { params: Promise<{ id: 
               <Glyph k="doc" size={12} />Save draft
             </button>
             <button
+              data-testid="gates-submit-button"
               disabled={!canSubmit}
               onClick={async () => { try { await api.post(`/journeys/${id}/submit`); window.location.reload(); } catch {} }}
               className={`h-7 px-3 flex items-center gap-1.5 rounded-[6px] text-[12px] font-medium transition-colors ${
@@ -112,7 +113,7 @@ export default function JourneyComposerPage({ params }: { params: Promise<{ id: 
             const warn = g.status === 'REVIEW';
             const gIcon = GATE_ICONS[g.gateNumber] ?? 'check';
             return (
-              <div key={g.gateNumber} className="bg-panel border border-line rounded-[10px]">
+              <div key={g.gateNumber} data-testid={`gate-${g.gateNumber}-panel`} className="bg-panel border border-line rounded-[10px]">
                 <div className="flex items-center justify-between px-3.5 py-3 border-b border-line-soft">
                   <div className="flex items-center gap-3">
                     <span className={`w-7 h-7 rounded-[6px] inline-flex items-center justify-center shrink-0 ${
@@ -127,7 +128,9 @@ export default function JourneyComposerPage({ params }: { params: Promise<{ id: 
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Pill status={ok ? 'go' : warn ? 'cond' : 'nogo'} label={ok ? 'PASS' : warn ? 'REVIEW' : 'BLOCK'} />
+                    <span data-testid={`gate-${g.gateNumber}-status`}>
+                      <Pill status={ok ? 'go' : warn ? 'cond' : 'nogo'} label={ok ? 'PASS' : warn ? 'REVIEW' : 'BLOCK'} />
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col">
@@ -279,7 +282,7 @@ function SummaryBanner({ canSubmit, gates, passedCount }: { canSubmit: boolean; 
 
   if (canSubmit) {
     return (
-      <div className="bg-panel border rounded-[10px] p-3.5" style={{ borderColor: 'rgba(30,201,145,0.3)' }}>
+      <div data-testid="gates-can-submit-badge" className="bg-panel border rounded-[10px] p-3.5" style={{ borderColor: 'rgba(30,201,145,0.3)' }}>
         <div className="flex items-center gap-3">
           <span className="w-[38px] h-[38px] rounded-[8px] bg-[var(--go-soft)] text-[var(--go)] inline-flex items-center justify-center shrink-0">
             <Glyph k="check" size={18} stroke={2.5} />
@@ -297,7 +300,7 @@ function SummaryBanner({ canSubmit, gates, passedCount }: { canSubmit: boolean; 
   }
 
   return (
-    <div className="bg-panel border rounded-[10px] p-3.5" style={{ borderColor: 'rgba(245,165,36,0.3)' }}>
+    <div data-testid="gates-can-submit-badge" className="bg-panel border rounded-[10px] p-3.5" style={{ borderColor: 'rgba(245,165,36,0.3)' }}>
       <div className="flex items-center gap-3">
         <span className="w-[38px] h-[38px] rounded-[8px] bg-[var(--cond-soft)] text-[var(--cond)] inline-flex items-center justify-center shrink-0">
           <Glyph k="alert" size={18} stroke={2} />

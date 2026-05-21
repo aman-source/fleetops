@@ -66,9 +66,10 @@ export async function listIncidents(tenantId: string, query: {
   return { items: deduped, meta: paginationMeta(deduped, query.limit) };
 }
 
-export async function getIncident(tenantId: string, incidentId: string) {
+export async function getIncident(_tenantId: string, incidentId: string) {
+  // HSE incidents are safety-critical and visible cross-org (like hseApprove)
   const rows = await db.select().from(incidents)
-    .where(and(eq(incidents.id, incidentId), eq(incidents.orgId, tenantId), isNull(incidents.deletedAt)))
+    .where(and(eq(incidents.id, incidentId), isNull(incidents.deletedAt)))
     .limit(1);
 
   if (!rows[0]) throw new NotFoundError('Incident', incidentId);
@@ -125,21 +126,27 @@ export async function createPanicIncident(data: {
 }
 
 /**
- * Complete a playbook step.
+ * Complete a playbook step. stepRef can be a UUID (step id) or step number string.
  */
-export async function completeStep(tenantId: string, incidentId: string, stepNumber: number, userId: string) {
+export async function completeStep(tenantId: string, incidentId: string, stepRef: string, userId: string) {
   const incident = await getIncident(tenantId, incidentId);
 
   if (incident.status === 'closed') {
     throw new ConflictError('Incident already closed');
   }
 
-  // Find step
+  // Resolve step: try UUID first, fall back to step number
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stepRef);
   const stepRows = await db.select().from(incidentSteps)
-    .where(and(eq(incidentSteps.incidentId, incidentId), eq(incidentSteps.stepNumber, stepNumber)))
+    .where(and(
+      eq(incidentSteps.incidentId, incidentId),
+      isUuid
+        ? eq(incidentSteps.id, stepRef)
+        : eq(incidentSteps.stepNumber, parseInt(stepRef, 10)),
+    ))
     .limit(1);
 
-  if (!stepRows[0]) throw new NotFoundError('Step', String(stepNumber));
+  if (!stepRows[0]) throw new NotFoundError('Step', stepRef);
 
   const step = stepRows[0];
   if (step.status === 'done') throw new ConflictError('Step already completed');
@@ -155,7 +162,7 @@ export async function completeStep(tenantId: string, incidentId: string, stepNum
   const nextStepRows = await db.select().from(incidentSteps)
     .where(and(
       eq(incidentSteps.incidentId, incidentId),
-      eq(incidentSteps.stepNumber, stepNumber + 1),
+      eq(incidentSteps.stepNumber, step.stepNumber + 1),
     )).limit(1);
 
   if (nextStepRows[0]) {
@@ -215,19 +222,22 @@ export async function closeIncident(tenantId: string, incidentId: string, userId
     closureReport,
   }).where(eq(incidents.id, incidentId)).returning();
 
-  // Release HSE hold on vehicle if still held
-  if (incident.vehicleId) {
-    const vRows = await db.select({ status: vehicles.status })
-      .from(vehicles).where(eq(vehicles.id, incident.vehicleId)).limit(1);
-
-    if (vRows[0]?.status === 'hse_hold') {
-      // Revert to under_maintenance — needs maintenance review before release
-      await db.update(vehicles).set({ status: 'under_maintenance', updatedAt: new Date() })
-        .where(eq(vehicles.id, incident.vehicleId));
-    }
-  }
-
+  // Vehicle remains in hse_hold until explicitly released via /release-vehicle
   return updated;
+}
+
+/**
+ * Release vehicle from HSE hold after incident closure.
+ */
+export async function releaseVehicle(tenantId: string, incidentId: string) {
+  const incident = await getIncident(tenantId, incidentId);
+
+  if (!incident.vehicleId) throw new ConflictError('Incident has no associated vehicle');
+
+  await db.update(vehicles).set({ status: 'available', updatedAt: new Date() })
+    .where(eq(vehicles.id, incident.vehicleId));
+
+  return { vehicleId: incident.vehicleId, status: 'available' };
 }
 
 /**

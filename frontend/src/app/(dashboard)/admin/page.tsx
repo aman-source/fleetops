@@ -1,8 +1,11 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
+import { useAuth } from '@/stores/auth';
 
 interface Workflow {
   id: string;
@@ -13,10 +16,21 @@ interface Workflow {
 }
 
 export default function AdminPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && user && user.role !== 'admin') {
+      router.push('/map');
+    }
+  }, [authLoading, user, router]);
+
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['workflows'],
     queryFn: async () => unwrap<Workflow[]>(await api.get('/admin/workflows')),
   });
+
+  if (authLoading || !user || user.role !== 'admin') return null;
 
   return (
     <>
@@ -37,7 +51,7 @@ export default function AdminPage() {
               {isLoading && <tr><td colSpan={4} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && workflows?.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-ink-3">No workflows configured</td></tr>}
               {workflows?.map((w) => (
-                <tr key={w.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={w.id} data-testid={`workflow-row-${w.id}`} className="hover:bg-raised transition-colors cursor-pointer">
                   <td className="px-3 py-2.5 text-ink-0 font-medium">{w.name}</td>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono">{w.key}</td>
                   <td className="px-3 py-2.5 text-ink-1 font-mono">v{w.currentVersion}</td>

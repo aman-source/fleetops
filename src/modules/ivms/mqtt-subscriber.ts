@@ -16,12 +16,19 @@ import { db } from '../../infra/db/client.js';
 import { telemetryLogs } from '../../infra/db/schema/telemetry.js';
 import { events as eventsTable } from '../../infra/db/schema/events.js';
 import { devices } from '../../infra/db/schema/devices.js';
-import { eq } from 'drizzle-orm';
+import { vehicles } from '../../infra/db/schema/vehicles.js';
+import { journeys } from '../../infra/db/schema/journeys.js';
+import { users } from '../../infra/db/schema/users.js';
+import { roles } from '../../infra/db/schema/roles.js';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { updateLiveState, type VehicleLiveState } from './live-state.js';
 import { classifyTelemetry, classifyPanic, type TelemetryPoint, type ClassifiedEvent } from './event-classifier.js';
+import { checkGeofences, checkRouteDeviation } from './geofence-checker.js';
+import { createPanicIncident } from '../hse/hse.service.js';
+import { queueNotification } from '../notifications/notifications.service.js';
 
 // Device ID → vehicle ID mapping cache (refreshed from DB)
-const deviceVehicleMap = new Map<string, { vehicleId: string; orgId: string }>();
+const deviceVehicleMap = new Map<string, { vehicleId: string; orgId: string; deviceUuid: string }>();
 
 export async function initMqttSubscriber(app: FastifyInstance) {
   const client = getMqttClient();
@@ -78,12 +85,12 @@ export async function initMqttSubscriber(app: FastifyInstance) {
 async function handleTelemetry(
   app: FastifyInstance,
   deviceId: string,
-  mapping: { vehicleId: string; orgId: string },
+  mapping: { vehicleId: string; orgId: string; deviceUuid: string },
   data: Record<string, unknown>,
 ) {
   const point: TelemetryPoint = {
     vehicleId: mapping.vehicleId,
-    deviceId,
+    deviceId: mapping.deviceUuid, // use UUID for DB storage
     driverId: data.driver_id as string | undefined,
     journeyId: data.journey_id as string | undefined,
     lat: Number(data.lat),
@@ -97,6 +104,16 @@ async function handleTelemetry(
     engineHours: data.engine_hours != null ? Number(data.engine_hours) : undefined,
     recordedAt: new Date(data.recorded_at as string || Date.now()),
   };
+
+  // If journeyId not in payload, look up the most recently activated journey for this vehicle
+  if (!point.journeyId) {
+    const activeJourney = await db.select({ id: journeys.id })
+      .from(journeys)
+      .where(and(eq(journeys.vehicleId, mapping.vehicleId), eq(journeys.status, 'active')))
+      .orderBy(desc(journeys.createdAt))
+      .limit(1);
+    if (activeJourney[0]) point.journeyId = activeJourney[0].id;
+  }
 
   // 1. Update Redis live state
   const liveState: VehicleLiveState = {
@@ -133,6 +150,37 @@ async function handleTelemetry(
     await storeAndPublishEvent(app, event, mapping.orgId);
   }
 
+  // 4a. Geofence entry/exit checks (non-blocking — errors logged, never thrown)
+  try {
+    const geofenceEvents = await checkGeofences(
+      point.vehicleId, point.deviceId, mapping.orgId,
+      point.lat, point.lon, point.journeyId, point.driverId,
+    );
+    for (const event of geofenceEvents) {
+      await storeAndPublishEvent(app, event, mapping.orgId);
+    }
+  } catch (err) {
+    app.log.error({ err }, 'Geofence check failed');
+  }
+
+  // 4b. Route deviation check for active journeys
+  if (point.journeyId) {
+    try {
+      const deviationEvent = await checkRouteDeviation(
+        point.vehicleId, point.deviceId, point.journeyId,
+        point.lat, point.lon, point.driverId,
+      );
+      if (deviationEvent) {
+        await storeAndPublishEvent(app, deviationEvent, mapping.orgId);
+        // Flip journey status to deviated
+        await db.update(journeys).set({ status: 'deviated', updatedAt: new Date() })
+          .where(and(eq(journeys.id, point.journeyId), eq(journeys.status, 'active')));
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Route deviation check failed');
+    }
+  }
+
   // 5. Publish live update to Redis pub/sub → WebSocket
   await redis.publish('fleet:live', JSON.stringify(liveState));
   await redis.publish(`vehicle:${mapping.vehicleId}`, JSON.stringify(liveState));
@@ -145,14 +193,14 @@ async function handleTelemetry(
 async function handlePanic(
   app: FastifyInstance,
   deviceId: string,
-  mapping: { vehicleId: string; orgId: string },
+  mapping: { vehicleId: string; orgId: string; deviceUuid: string },
   data: Record<string, unknown>,
 ) {
   app.log.warn({ vehicleId: mapping.vehicleId, deviceId }, 'PANIC EVENT RECEIVED');
 
   const point: TelemetryPoint = {
     vehicleId: mapping.vehicleId,
-    deviceId,
+    deviceId: mapping.deviceUuid, // use UUID for DB storage (events.device_id is UUID)
     driverId: data.driver_id as string | undefined,
     journeyId: data.journey_id as string | undefined,
     lat: Number(data.lat),
@@ -166,20 +214,67 @@ async function handlePanic(
   const panicEvent = classifyPanic(point);
 
   // PANIC: immediate path — no batching, no queue delay
-  // 1. Immediate DB write (not async)
-  await storeAndPublishEvent(app, panicEvent, mapping.orgId);
+  // 1. Immediate DB write (not async) — returns inserted event id
+  const eventId = await storeAndPublishEvent(app, panicEvent, mapping.orgId);
 
   // 2. Immediate Redis publish to critical channel
   await redis.publish('events:severity:critical', JSON.stringify(panicEvent));
 
-  // 3. TODO Phase 7: Create incident
-  // 4. TODO Phase 9: BullMQ priority-1 notification job
+  // 3. Create incident from panic event
+  try {
+    await createPanicIncident({
+      eventId: eventId ?? crypto.randomUUID(),
+      vehicleId: mapping.vehicleId,
+      driverId: point.driverId,
+      journeyId: point.journeyId,
+      lat: point.lat,
+      lon: point.lon,
+      situation: 'Panic button activated',
+      orgId: mapping.orgId,
+    });
+  } catch (err) {
+    app.log.error({ err }, 'Failed to create panic incident — continuing');
+  }
+
+  // 4. Notify HSE, GM, journey_manager roles for the org
+  try {
+    const notifyRoles = ['hse', 'gm', 'journey_manager'];
+    const roleRows = await db.select({ id: roles.id })
+      .from(roles)
+      .where(and(eq(roles.orgId, mapping.orgId), inArray(roles.name, notifyRoles)));
+
+    if (roleRows.length > 0) {
+      const roleIds = roleRows.map(r => r.id);
+      const userRows = await db.select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.orgId, mapping.orgId), inArray(users.roleId, roleIds)));
+
+      for (const user of userRows) {
+        await queueNotification({
+          userId: user.id,
+          type: 'panic',
+          title: '🚨 Panic Button Activated',
+          body: `Vehicle ${mapping.vehicleId} triggered panic at (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`,
+          channel: 'in_app',
+          data: {
+            vehicleId: mapping.vehicleId,
+            driverId: point.driverId,
+            journeyId: point.journeyId,
+            lat: point.lat,
+            lon: point.lon,
+          },
+        }, 1);
+      }
+    }
+  } catch (err) {
+    app.log.error({ err }, 'Failed to queue panic notifications — continuing');
+  }
 }
 
 async function handleDeviceEvent(
   app: FastifyInstance,
   deviceId: string,
-  mapping: { vehicleId: string; orgId: string },
+  mapping: { vehicleId: string; orgId: string; deviceUuid: string },
   data: Record<string, unknown>,
 ) {
   const event: ClassifiedEvent = {
@@ -204,20 +299,34 @@ async function handleHealth(
   deviceId: string,
   data: Record<string, unknown>,
 ) {
-  await db.update(devices).set({
-    healthStatus: String(data.status ?? 'online'),
+  const healthStatus = String(data.status ?? 'online');
+
+  const [device] = await db.update(devices).set({
+    healthStatus,
     gpsQuality: data.gps_quality != null ? Number(data.gps_quality) : undefined,
     batteryPct: data.battery_pct != null ? Number(data.battery_pct) : undefined,
     firmware: data.firmware as string | undefined,
     lastSeen: new Date(),
     updatedAt: new Date(),
-  }).where(eq(devices.serialNo, deviceId));
+  }).where(eq(devices.serialNo, deviceId)).returning({ type: devices.type, vehicleId: devices.vehicleId });
+
+  // Auto-flip vehicle status on device fault
+  if (device?.vehicleId && healthStatus === 'fault') {
+    const targetStatus = device.type === 'nfc' ? 'nfc_fault' : 'ivms_fault';
+    try {
+      await db.update(vehicles).set({ status: targetStatus, updatedAt: new Date() })
+        .where(and(eq(vehicles.id, device.vehicleId)));
+      app.log.warn({ vehicleId: device.vehicleId, deviceType: device.type }, `Vehicle set to ${targetStatus}`);
+    } catch (err) {
+      app.log.error({ err }, `Failed to flip vehicle to ${targetStatus}`);
+    }
+  }
 }
 
 async function handleNfc(
   app: FastifyInstance,
   _deviceId: string,
-  mapping: { vehicleId: string; orgId: string },
+  mapping: { vehicleId: string; orgId: string; deviceUuid: string },
   data: Record<string, unknown>,
 ) {
   // NFC tap — driver identification
@@ -247,10 +356,10 @@ async function storeAndPublishEvent(
   app: FastifyInstance,
   event: ClassifiedEvent,
   orgId: string,
-) {
+): Promise<string | undefined> {
   try {
-    // DB write
-    await db.insert(eventsTable).values({
+    // DB write — return inserted id
+    const [inserted] = await db.insert(eventsTable).values({
       vehicleId: event.vehicleId,
       driverId: event.driverId,
       journeyId: event.journeyId,
@@ -263,7 +372,7 @@ async function storeAndPublishEvent(
       details: event.details,
       recordedAt: event.recordedAt,
       orgId,
-    });
+    }).returning({ id: eventsTable.id });
 
     // Redis pub/sub fan-out
     const payload = JSON.stringify(event);
@@ -276,20 +385,23 @@ async function storeAndPublishEvent(
     if (event.severity === 'critical') {
       await redis.publish('events:severity:critical', payload);
     }
+
+    return inserted?.id;
   } catch (err) {
     app.log.error({ err, event }, 'Event store/publish failed');
+    return undefined;
   }
 }
 
 async function refreshDeviceMap() {
   const rows = await db
-    .select({ serialNo: devices.serialNo, vehicleId: devices.vehicleId, orgId: devices.orgId })
+    .select({ id: devices.id, serialNo: devices.serialNo, vehicleId: devices.vehicleId, orgId: devices.orgId })
     .from(devices);
 
   deviceVehicleMap.clear();
   for (const row of rows) {
     if (row.vehicleId) {
-      deviceVehicleMap.set(row.serialNo, { vehicleId: row.vehicleId, orgId: row.orgId });
+      deviceVehicleMap.set(row.serialNo, { vehicleId: row.vehicleId, orgId: row.orgId, deviceUuid: row.id });
     }
   }
 }

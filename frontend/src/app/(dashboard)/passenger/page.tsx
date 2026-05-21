@@ -53,7 +53,7 @@ export default function PassengerPage() {
               {isLoading && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && requests?.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">No requests</td></tr>}
               {requests?.map((r) => (
-                <tr key={r.id} className="hover:bg-raised transition-colors cursor-pointer">
+                <tr key={r.id} data-testid={`passenger-request-row-${r.id}`} className="hover:bg-raised transition-colors cursor-pointer">
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{r.requestNo}</td>
                   <td className="px-3 py-2.5 text-ink-0">{r.pickupName ?? '\u2014'}</td>
                   <td className="px-3 py-2.5 text-ink-0">{r.dropName ?? '\u2014'}</td>

@@ -1,0 +1,113 @@
+services:
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "3100:3000"
+    environment:
+      NODE_ENV: test
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgresql://fleetops:fleetops_secret@postgres-test:5432/fleetops_test
+      REDIS_URL: redis://redis-test:6379
+      MQTT_URL: mqtt://mosquitto-test:1883
+      MINIO_ENDPOINT: minio-test
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: fleetops_minio
+      MINIO_SECRET_KEY: fleetops_minio_secret
+      MINIO_BUCKET: fleetops-test
+      MINIO_USE_SSL: "false"
+      JWT_SECRET: test-jwt-secret-min-16-chars
+      JWT_REFRESH_SECRET: test-refresh-secret-min-16
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+      LOG_LEVEL: warn
+      SMS_PROVIDER: none
+      WHATSAPP_PROVIDER: none
+    command: ["node", "--import", "tsx/esm", "src/server.ts"]
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      mosquitto-test:
+        condition: service_started
+      minio-test:
+        condition: service_healthy
+    restart: "no"
+
+  postgres-test:
+    image: postgis/postgis:16-3.4
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: fleetops_test
+      POSTGRES_USER: fleetops
+      POSTGRES_PASSWORD: fleetops_secret
+    volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleetops -d fleetops_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: "no"
+
+  mosquitto-test:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1884:1883"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: "no"
+
+  minio-test:
+    image: minio/minio:latest
+    ports:
+      - "9003:9000"
+      - "9004:9001"
+    environment:
+      MINIO_ROOT_USER: fleetops_minio
+      MINIO_ROOT_PASSWORD: fleetops_minio_secret
+    command: server /data --console-address ":9001"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  frontend-test:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3100
+    ports:
+      - "3101:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      app-test:
+        condition: service_started
+    restart: "no"

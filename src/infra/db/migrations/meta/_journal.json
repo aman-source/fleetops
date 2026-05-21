@@ -8,6 +8,13 @@
       "when": 1778691422546,
       "tag": "0000_fantastic_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779265014525,
+      "tag": "0001_push_token_and_schema_sync",
+      "breakpoints": true
     }
   ]
 }

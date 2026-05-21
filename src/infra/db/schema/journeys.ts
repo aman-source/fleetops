@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, integer, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, integer, timestamp, index, jsonb } from 'drizzle-orm/pg-core';
 import { vehicles } from './vehicles';
 import { drivers } from './drivers';
 import { users } from './users';
@@ -6,7 +6,7 @@ import { organizations } from './organizations';
 
 export const JOURNEY_STATUSES = [
   'draft', 'pending_approval', 'approved', 'active',
-  'delayed', 'deviated', 'completed', 'closed',
+  'delayed', 'deviated', 'completed', 'closed', 'closed_with_exceptions',
   'rejected', 'cancelled', 'emergency',
 ] as const;
 export type JourneyStatus = (typeof JOURNEY_STATUSES)[number];
@@ -35,6 +35,8 @@ export const journeys = pgTable('journeys', {
   vehicleStatusSnapshot: text('vehicle_status_snapshot').notNull(), // snapshot at creation
   orgId: uuid('org_id').references(() => organizations.id).notNull(),
   createdBy: uuid('created_by').references(() => users.id).notNull(),
+  snappedTrail: jsonb('snapped_trail').$type<{ type: 'LineString'; coordinates: [number, number][] } | null>(),
+  directionsRoute: jsonb('directions_route').$type<{ type: 'LineString'; coordinates: [number, number][] } | null>(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

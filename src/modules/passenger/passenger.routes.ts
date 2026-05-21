@@ -3,6 +3,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js';
 import { authorize } from '../../shared/middleware/authorize.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess, sendCreated, sendNoContent } from '../../shared/response.js';
+import { exportCsv } from '../../shared/csv.js';
 import {
   createRequestSchema, updateRequestSchema, requestQuerySchema,
   createPoolSchema, assignPoolSchema, boardingSchema,
@@ -15,6 +16,15 @@ export async function passengerRoutes(app: FastifyInstance) {
 
   // GET /passenger/requests
   app.get('/passenger/requests', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    if (q.format === 'csv') {
+      const query = requestQuerySchema.parse({ ...q, limit: 50000 });
+      const result = await service.listRequests(request.tenantId, query);
+      return exportCsv(reply, ['Request No', 'Passenger', 'Status', 'Pickup Location', 'Destination', 'Requested For'],
+        result.items as Record<string, unknown>[],
+        'passenger-requests.csv',
+        { 'Request No': 'requestNo', 'Passenger': 'passengerId', 'Status': 'status', 'Pickup Location': 'pickupLocation', 'Destination': 'destination', 'Requested For': 'requestedFor' });
+    }
     const query = requestQuerySchema.parse(request.query);
     const result = await service.listRequests(request.tenantId, query);
     return sendSuccess(reply, result.items, 200, result.meta);
@@ -68,6 +78,16 @@ export async function passengerRoutes(app: FastifyInstance) {
     const input = assignPoolSchema.parse(request.body);
     const pool = await service.assignPool(request.tenantId, id, input);
     return sendSuccess(reply, pool);
+  });
+
+  // POST /passenger/pools/auto-build — auto-pool all approved un-pooled requests
+  app.post('/passenger/pools/auto-build', { preHandler: [authorize('passenger:pool')] }, async (request, reply) => {
+    const pools = await service.autoPool(request.tenantId);
+    // Return first pool with requests for API consumers; also include all pool IDs
+    const firstPool = pools[0] ?? null;
+    return sendSuccess(reply, firstPool
+      ? { id: firstPool.id, requests: firstPool.requests, created: pools.length, pools: pools.map(p => p.id) }
+      : { id: null, requests: [], created: 0, pools: [] });
   });
 
   // POST /passenger/boarding/:journeyId

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuth((s) => s.user);
+  const [activating, setActivating] = useState(false);
 
   const { data: journey } = useQuery({
     queryKey: ['my-journey'],
@@ -52,6 +53,38 @@ export default function TodayScreen() {
   const handleCheckPress = (id: string) => {
     if (id === 'checklist') router.push('/(driver)/checklist');
     if (id === 'qr') router.push('/(driver)/qr-auth');
+  };
+
+  const handleStartNav = async () => {
+    if (!journey || activating) return;
+    setActivating(true);
+    try {
+      // Activate the journey (status: approved → active)
+      await api.post(`/journeys/${journey.id}/activate`);
+
+      // Fetch waypoints for this journey from map-data (now status=active)
+      const mapRes = await api.get('/journeys/map-data');
+      const mapData = unwrap<Array<{
+        id: string;
+        waypoints: Array<{ lat: number; lon: number; sequence: number }>;
+      }>>(mapRes);
+      const jData = mapData.find((j) => j.id === journey.id);
+      const sortedWp = (jData?.waypoints ?? [])
+        .sort((a, b) => a.sequence - b.sequence);
+
+      const waypointsParam = sortedWp
+        .map((w) => `${w.lat},${w.lon}`)
+        .join(';');
+
+      router.push(
+        `/(driver)/navigation?journeyId=${journey.id}&waypoints=${encodeURIComponent(waypointsParam)}`,
+      );
+    } catch (err) {
+      // Activation failed (gates blocked) — fall through silently; journey remains in current status
+      console.warn('Activate failed', err);
+    } finally {
+      setActivating(false);
+    }
   };
 
   return (
@@ -101,11 +134,19 @@ export default function TodayScreen() {
       <DepartChecklist items={checkItems} onPress={handleCheckPress} />
 
       {journey && (
-        <Button
-          title="Start pre-trip"
-          onPress={() => router.push('/(driver)/checklist')}
-          icon={<Glyph k="chevR" size={16} color={colors.white} />}
-        />
+        <View style={styles.ctaStack}>
+          <Button
+            title="Start pre-trip"
+            variant="secondary"
+            onPress={() => router.push('/(driver)/checklist')}
+            icon={<Glyph k="chevR" size={16} color={colors.ink0} />}
+          />
+          <Button
+            title={activating ? 'Activating…' : 'Start navigation'}
+            onPress={handleStartNav}
+            icon={<Glyph k="chevR" size={16} color={colors.white} />}
+          />
+        </View>
       )}
     </ScrollView>
   );
@@ -121,4 +162,5 @@ const styles = StyleSheet.create({
   avatarText: { fontFamily: fonts.mono500, fontSize: 16, color: colors.white },
   noTrip: { padding: 32, alignItems: 'center' },
   noTripText: { ...typ.body, color: colors.ink3 },
+  ctaStack: { gap: 10 },
 });

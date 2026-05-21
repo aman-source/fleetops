@@ -56,12 +56,13 @@ export async function initWebSocket(app: FastifyInstance) {
     app.log.info({ userId: user.sub, email: user.email }, 'WebSocket client connected');
 
     socket.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString());
-        handleClientMessage(app, client, msg);
-      } catch {
-        socket.send(JSON.stringify({ error: 'Invalid message format' }));
-      }
+      const msg = (() => {
+        try { return JSON.parse(raw.toString()); } catch { return null; }
+      })();
+      if (!msg) { socket.send(JSON.stringify({ error: 'Invalid message format' })); return; }
+      handleClientMessage(app, client, msg).catch((err) => {
+        app.log.error({ err }, 'WS message handler error');
+      });
     });
 
     socket.on('close', () => {
@@ -88,10 +89,10 @@ export async function initWebSocket(app: FastifyInstance) {
   });
 }
 
-function handleClientMessage(app: FastifyInstance, client: WsClient, msg: { action: string; room?: string }) {
+async function handleClientMessage(app: FastifyInstance, client: WsClient, msg: { action: string; room?: string }) {
   switch (msg.action) {
     case 'subscribe':
-      if (msg.room) joinRoom(app, client, msg.room);
+      if (msg.room) await joinRoom(app, client, msg.room);
       break;
     case 'unsubscribe':
       if (msg.room) leaveRoom(client, msg.room);
@@ -102,7 +103,7 @@ function handleClientMessage(app: FastifyInstance, client: WsClient, msg: { acti
   }
 }
 
-function joinRoom(app: FastifyInstance, client: WsClient, room: string) {
+async function joinRoom(app: FastifyInstance, client: WsClient, room: string) {
   // Validate room access based on user role/permissions
   if (!canAccessRoom(client.user, room)) {
     client.socket.send(JSON.stringify({ error: `Access denied to room: ${room}` }));
@@ -117,13 +118,18 @@ function joinRoom(app: FastifyInstance, client: WsClient, room: string) {
   roomSubscriptions.get(room)!.add(client);
 
   // Subscribe to Redis channel if first client in this room
+  // Await so the subscription is confirmed before sending the ack
   if (!subscribedChannels.has(room)) {
     subscribedChannels.add(room);
-    redisSub.subscribe(room).catch((err) => {
+    try {
+      await redisSub.subscribe(room);
+    } catch (err) {
       app.log.error({ err, room }, 'Redis subscribe failed');
-    });
+      subscribedChannels.delete(room);
+    }
   }
 
+  // Send ack only after Redis subscription is confirmed
   client.socket.send(JSON.stringify({ action: 'subscribed', room }));
 }
 

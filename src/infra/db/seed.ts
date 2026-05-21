@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { organizations } from './schema/organizations.js';
 import { roles } from './schema/roles.js';
 import { users } from './schema/users.js';
+import { workflows, workflowVersions } from './schema/workflows.js';
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://fleetops:fleetops_secret@localhost:5432/fleetops';
 
@@ -24,17 +25,18 @@ const PERMISSIONS = {
   ],
   journey_manager: [
     'journey:create', 'journey:read', 'journey:update', 'journey:submit', 'journey:approve',
-    'fleet:read', 'passenger:read', 'documents:read', 'notifications:read',
+    'fleet:read', 'passenger:read', 'passenger:pool', 'documents:read', 'notifications:read',
+    'analytics:read',
   ],
   hse: [
     'hse:read', 'hse:update', 'hse:approve', 'incident:read', 'incident:update', 'incident:close',
     'journey:read', 'journey:approve', 'fleet:read', 'maintenance:read',
-    'documents:read', 'notifications:read', 'audit:read',
+    'documents:read', 'notifications:read', 'audit:read', 'analytics:read',
   ],
   maintenance: [
     'maintenance:read', 'maintenance:create', 'maintenance:update', 'maintenance:release',
     'fleet:read', 'fleet:update', 'documents:read', 'documents:create',
-    'notifications:read',
+    'notifications:read', 'analytics:read',
   ],
   driver: [
     'journey:read', 'journey:activate', 'journey:close',
@@ -137,6 +139,51 @@ async function seed() {
     });
   }
   console.log(`  Created ${testUsers.length} users (password: Fleetops@2026)`);
+
+  // ── Workflows (pre-seeded for admin-workflow-config E2E test) ──
+  console.log('Creating pre-seeded workflows...');
+  const seedWorkflows = [
+    {
+      name: 'journey_approval',
+      key: 'JM-APPROVAL',
+      description: 'Journey Manager approval chain',
+      nodes: [
+        { id: 'approval-1', type: 'approval', config: { role: 'journey_manager' }, position: { x: 100, y: 100 } },
+        { id: 'notify-1', type: 'notification', config: { recipients: ['journey_manager', 'hse'] }, position: { x: 300, y: 100 } },
+      ],
+      edges: [{ from: 'approval-1', to: 'notify-1' }],
+    },
+    {
+      name: 'vehicle_release',
+      key: 'VEH-RELEASE',
+      description: 'Vehicle maintenance release workflow',
+      nodes: [
+        { id: 'gate-1', type: 'gate', config: { check: 'hse_cosign' }, position: { x: 100, y: 100 } },
+        { id: 'approval-1', type: 'approval', config: { role: 'hse' }, position: { x: 300, y: 100 } },
+        { id: 'notify-1', type: 'notification', config: { recipients: ['maintenance', 'journey_manager'] }, position: { x: 500, y: 100 } },
+      ],
+      edges: [{ from: 'gate-1', to: 'approval-1' }, { from: 'approval-1', to: 'notify-1' }],
+    },
+  ];
+
+  for (const wf of seedWorkflows) {
+    const [workflow] = await db.insert(workflows).values({
+      name: wf.name,
+      key: wf.key,
+      currentVersion: 1,
+      orgId: arTech.id,
+    }).returning();
+
+    await db.insert(workflowVersions).values({
+      workflowId: workflow.id,
+      version: 1,
+      status: 'published',
+      nodes: wf.nodes,
+      edges: wf.edges,
+      publishedAt: new Date(),
+    });
+  }
+  console.log(`  Created ${seedWorkflows.length} pre-seeded workflows`);
 
   console.log('\nSeed complete.');
   await pool.end();

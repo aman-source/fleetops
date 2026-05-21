@@ -1,0 +1,98 @@
+appId: com.artech.fleetops
+---
+# Mobile.2 driver-checklist.yaml
+# Persona: Driver Ali
+# Goal: Complete pre-trip checklist with 1 defect on item 7 (Fire extinguisher)
+
+# Assumes driver is already logged in and on Today screen (run after driver-today)
+
+- tapOn:
+    id: "checklist-start-pretrip"
+
+# Assert checklist screen loaded
+- assertVisible:
+    id: "checklist-screen"
+
+# Items 1-6: all PASS
+- tapOn:
+    id: "checklist-item-1-pass"
+- tapOn:
+    id: "checklist-item-2-pass"
+- tapOn:
+    id: "checklist-item-3-pass"
+- tapOn:
+    id: "checklist-item-4-pass"
+- tapOn:
+    id: "checklist-item-5-pass"
+- tapOn:
+    id: "checklist-item-6-pass"
+
+# Item 7: Fire extinguisher — FAIL with photo and note
+- tapOn:
+    id: "checklist-item-7-fail"
+
+# Add note
+- tapOn:
+    id: "checklist-item-7-note"
+- inputText: "Fire extinguisher missing from bracket"
+
+# Attach photo
+- tapOn:
+    id: "checklist-item-7-photo"
+
+# Maestro camera injection — use the pre-loaded test image
+- assertVisible:
+    id: "camera-screen"
+- tapOn:
+    id: "camera-capture-button"
+
+# Confirm photo added
+- assertVisible:
+    id: "checklist-item-7-photo-preview"
+
+# Items 8-18: all PASS
+- tapOn:
+    id: "checklist-item-8-pass"
+- tapOn:
+    id: "checklist-item-9-pass"
+- tapOn:
+    id: "checklist-item-10-pass"
+- tapOn:
+    id: "checklist-item-11-pass"
+- tapOn:
+    id: "checklist-item-12-pass"
+- tapOn:
+    id: "checklist-item-13-pass"
+- tapOn:
+    id: "checklist-item-14-pass"
+- tapOn:
+    id: "checklist-item-15-pass"
+- tapOn:
+    id: "checklist-item-16-pass"
+- tapOn:
+    id: "checklist-item-17-pass"
+- tapOn:
+    id: "checklist-item-18-pass"
+
+# Submit checklist
+- tapOn:
+    id: "checklist-submit"
+
+# Assert success
+- assertVisible:
+    id: "checklist-success-banner"
+
+# Navigate to defects tab — defect should appear
+- tapOn:
+    id: "tab-defects"
+
+- assertVisible:
+    id: "defect-list"
+
+# Defect from item 7 should be in list
+- assertVisible:
+    text: "Fire extinguisher"
+
+# Assert sync queue is cleared (no offline indicator)
+- assertNotVisible:
+    id: "checklist-sync-queue"

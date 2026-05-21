@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { eq, and } from 'drizzle-orm';
+import { generateSecret as totpGenerateSecret, generateURI as totpGenerateURI, verify as totpVerify } from 'otplib';
+import qrcode from 'qrcode';
 import { db } from '../../infra/db/client.js';
 import { users, sessions, roles, organizations } from '../../infra/db/schema/index.js';
 import { redis } from '../../infra/redis/client.js';
@@ -89,7 +91,7 @@ export async function blacklistToken(token: string, expiresInSeconds: number): P
   await redis.setex(`${BLACKLIST_PREFIX}${token}`, expiresInSeconds, '1');
 }
 
-export async function login(email: string, password: string, ip?: string, userAgent?: string): Promise<{ tokens: TokenPair; user: AuthUser }> {
+export async function login(email: string, password: string, ip?: string, userAgent?: string): Promise<{ tokens?: TokenPair; user?: AuthUser; mfaRequired?: boolean; mfaToken?: string }> {
   const result = await db
     .select({
       id: users.id,
@@ -117,6 +119,16 @@ export async function login(email: string, password: string, ip?: string, userAg
 
   const passwordValid = await verifyPassword(password, user.passwordHash);
   if (!passwordValid) throw new UnauthorizedError('Invalid email or password');
+
+  // If MFA enabled, return a short-lived challenge token instead of full tokens
+  if (user.mfaEnabled) {
+    const mfaToken = jwt.sign(
+      { sub: user.id, type: 'mfa_challenge' },
+      env.JWT_SECRET,
+      { expiresIn: 300 }, // 5 minutes
+    );
+    return { mfaRequired: true, mfaToken };
+  }
 
   const payload: JwtPayload = {
     sub: user.id,
@@ -267,6 +279,110 @@ export async function getMe(userId: string): Promise<AuthUser> {
     orgId: user.orgId,
     orgName: user.orgName,
     mfaEnabled: user.mfaEnabled,
+  };
+}
+
+export async function mfaSetup(userId: string): Promise<{ secret: string; qrCodeUrl: string; otpauthUrl: string }> {
+  const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user[0]) throw new UnauthorizedError('User not found');
+
+  const secret = totpGenerateSecret();
+  const otpauthUrl = totpGenerateURI({ secret, issuer: env.MFA_ISSUER, label: user[0].email });
+  const qrCodeUrl = await qrcode.toDataURL(otpauthUrl);
+
+  return { secret, qrCodeUrl, otpauthUrl };
+}
+
+export async function mfaEnable(userId: string, secret: string, totp: string): Promise<void> {
+  const valid = totpVerify({ secret, token: totp });
+  if (!valid) throw new UnauthorizedError('Invalid TOTP code');
+
+  await db.update(users).set({ mfaSecret: secret, mfaEnabled: true }).where(eq(users.id, userId));
+}
+
+export async function mfaDisable(userId: string, totp: string): Promise<void> {
+  const result = await db.select({ mfaSecret: users.mfaSecret }).from(users).where(eq(users.id, userId)).limit(1);
+  const user = result[0];
+  if (!user?.mfaSecret) throw new UnauthorizedError('MFA not enabled');
+
+  const valid = totpVerify({ secret: user.mfaSecret, token: totp });
+  if (!valid) throw new UnauthorizedError('Invalid TOTP code');
+
+  await db.update(users).set({ mfaSecret: null, mfaEnabled: false }).where(eq(users.id, userId));
+}
+
+export async function mfaVerifyLogin(mfaToken: string, totp: string, ip?: string, userAgent?: string): Promise<{ tokens: TokenPair; user: AuthUser }> {
+  let decoded: { sub: string; type: string };
+  try {
+    decoded = jwt.verify(mfaToken, env.JWT_SECRET) as { sub: string; type: string };
+  } catch {
+    throw new UnauthorizedError('Invalid or expired MFA token');
+  }
+  if (decoded.type !== 'mfa_challenge') throw new UnauthorizedError('Invalid MFA token type');
+
+  const result = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      phone: users.phone,
+      status: users.status,
+      mfaSecret: users.mfaSecret,
+      mfaEnabled: users.mfaEnabled,
+      orgId: users.orgId,
+      roleName: roles.name,
+      permissions: roles.permissions,
+      orgName: organizations.name,
+    })
+    .from(users)
+    .innerJoin(roles, eq(users.roleId, roles.id))
+    .innerJoin(organizations, eq(users.orgId, organizations.id))
+    .where(eq(users.id, decoded.sub))
+    .limit(1);
+
+  const user = result[0];
+  if (!user) throw new UnauthorizedError('User not found');
+  if (!user.mfaSecret) throw new UnauthorizedError('MFA not configured');
+  if (user.status !== 'active') throw new ForbiddenError('Account is locked or inactive');
+
+  const valid = totpVerify({ secret: user.mfaSecret, token: totp });
+  if (!valid) throw new UnauthorizedError('Invalid TOTP code');
+
+  const payload: JwtPayload = {
+    sub: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.roleName,
+    permissions: user.permissions ?? [],
+    orgId: user.orgId,
+  };
+
+  const tokens = generateTokenPair(payload);
+
+  const refreshExpiryMs = parseExpiry(env.JWT_REFRESH_EXPIRY);
+  await db.insert(sessions).values({
+    userId: user.id,
+    refreshToken: tokens.refreshToken,
+    expiresAt: new Date(Date.now() + refreshExpiryMs),
+    ip: ip ?? null,
+    userAgent: userAgent ?? null,
+  });
+
+  await db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, user.id));
+
+  return {
+    tokens,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.roleName,
+      permissions: user.permissions ?? [],
+      orgId: user.orgId,
+      orgName: user.orgName,
+      mfaEnabled: user.mfaEnabled,
+    },
   };
 }
 

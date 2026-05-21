@@ -7,6 +7,7 @@ import { Card } from '../../src/components/ui/card';
 import { Button } from '../../src/components/ui/button';
 import { Glyph } from '../../src/components/ui/glyph';
 import { Pill } from '../../src/components/ui/pill';
+import { GeocoderInput, type GeoResult } from '../../src/components/GeocoderInput';
 import { colors } from '../../src/theme/colors';
 import { fonts, type as typ } from '../../src/theme/typography';
 import { spacing, radii } from '../../src/theme/tokens';
@@ -18,15 +19,19 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [tripType, setTripType] = useState(0);
   const [selectedTime, setSelectedTime] = useState(1);
-  const [pickup] = useState({ name: 'Muscat HQ · Building 4 lobby', sub: 'Al Khuwair · Way 4302' });
-  const [dropoff] = useState({ name: 'Marmul Camp · Block C', sub: 'PDO Block 6 · approved sites' });
+  const [pickup, setPickup] = useState<GeoResult | null>(null);
+  const [dropoff, setDropoff] = useState<GeoResult | null>(null);
   const [notes, setNotes] = useState('');
 
   const submitMutation = useMutation({
     mutationFn: async () => {
       const res = await api.post('/passenger/requests', {
-        pickupName: pickup.name,
-        dropName: dropoff.name,
+        pickupName: pickup?.name ?? '',
+        pickupLat: pickup?.lat,
+        pickupLon: pickup?.lon,
+        dropName: dropoff?.name ?? '',
+        dropLat: dropoff?.lat,
+        dropLon: dropoff?.lon,
         requestedTime: new Date().toISOString(),
         tripType: ['one_way', 'round_trip', 'recurring'][tripType],
         notes,
@@ -58,33 +63,39 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      <Card noPadding>
-        <View style={styles.locRow}>
-          <View style={[styles.dot, { backgroundColor: colors.go }]} />
-          <View style={styles.locText}>
-            <Text style={styles.locLabel}>PICKUP</Text>
-            <Text style={styles.locName}>{pickup.name}</Text>
-            <Text style={styles.locSub}>{pickup.sub}</Text>
+      <Card>
+        <View style={styles.geocoderStack}>
+          <GeocoderInput
+            label="PICKUP LOCATION"
+            placeholder="Search pickup\u2026"
+            proximityLon={55.20}
+            proximityLat={18.13}
+            onSelect={(r) => setPickup(r)}
+          />
+          <View style={styles.geocoderDivider}>
+            <View style={styles.dashLine}>
+              <View style={styles.dashDot} />
+              <View style={styles.dashDot} />
+              <View style={styles.dashDot} />
+            </View>
           </View>
+          <GeocoderInput
+            label="DROP-OFF LOCATION"
+            placeholder="Search destination\u2026"
+            proximityLon={55.20}
+            proximityLat={18.13}
+            onSelect={(r) => setDropoff(r)}
+          />
         </View>
-        <View style={styles.locDivider} />
-        <View style={styles.locRow}>
-          <View style={styles.dashLine}>
-            <View style={styles.dashDot} />
-            <View style={styles.dashDot} />
-            <View style={styles.dashDot} />
+        {pickup && dropoff ? (
+          <View style={styles.routeInfo}>
+            <Glyph k="route" size={14} color={colors.ink3} />
+            <Text style={styles.routeText}>
+              {pickup.name} \u2192 {dropoff.name}
+            </Text>
+            <Glyph k="chevR" size={14} color={colors.ink4} />
           </View>
-          <View style={styles.locText}>
-            <Text style={styles.locLabel}>DROP-OFF</Text>
-            <Text style={styles.locName}>{dropoff.name}</Text>
-            <Text style={styles.locSub}>{dropoff.sub}</Text>
-          </View>
-        </View>
-        <View style={styles.routeInfo}>
-          <Glyph k="route" size={14} color={colors.ink3} />
-          <Text style={styles.routeText}>712 km · ~8h · pooled shuttle eligible</Text>
-          <Glyph k="chevR" size={14} color={colors.ink4} />
-        </View>
+        ) : null}
       </Card>
 
       <Card>
@@ -151,7 +162,7 @@ export default function HomeScreen() {
       <Button
         title={submitMutation.isPending ? 'Submitting...' : 'Submit request'}
         onPress={() => submitMutation.mutate()}
-        disabled={submitMutation.isPending}
+        disabled={submitMutation.isPending || !pickup || !dropoff}
         icon={<Glyph k="chevR" size={16} color={colors.white} />}
       />
       <Text style={styles.slaText}>GOES TO MUSCAT LOGISTICS PLANNER · SLA 30 min</Text>
@@ -171,16 +182,12 @@ const styles = StyleSheet.create({
   segBtnActive: { backgroundColor: colors.ink0 },
   segText: { fontFamily: fonts.sans500, fontSize: 13, color: colors.ink2 },
   segTextActive: { color: colors.white },
-  locRow: { flexDirection: 'row', alignItems: 'flex-start', padding: 14, gap: 12 },
-  locDivider: { height: 1, backgroundColor: colors.lineSoft, marginHorizontal: 14 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, borderWidth: 2, borderColor: colors.white },
-  dashLine: { alignItems: 'center', gap: 3, marginTop: 6 },
+  geocoderStack: { gap: 12 },
+  geocoderDivider: { alignItems: 'center', marginVertical: -4 },
+  dashLine: { alignItems: 'center', gap: 3 },
   dashDot: { width: 2, height: 3, backgroundColor: colors.ink4 },
-  locText: { flex: 1, gap: 2 },
   locLabel: { fontFamily: fonts.mono500, fontSize: 10, color: colors.ink3, letterSpacing: 0.8, textTransform: 'uppercase' },
-  locName: { fontFamily: fonts.sans500, fontSize: 14, color: colors.ink0 },
-  locSub: { fontFamily: fonts.sans400, fontSize: 11, color: colors.ink4 },
-  routeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, backgroundColor: colors.bg3, borderTopWidth: 1, borderTopColor: colors.lineSoft },
+  routeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, backgroundColor: colors.bg3, borderRadius: 6, marginTop: 10 },
   routeText: { fontFamily: fonts.mono400, fontSize: 11, color: colors.ink2, flex: 1 },
   whenHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   whenDate: { fontFamily: fonts.mono500, fontSize: 18, color: colors.ink0 },

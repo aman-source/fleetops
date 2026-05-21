@@ -1,0 +1,78 @@
+appId: com.artech.fleetops
+---
+# Mobile.3 driver-qr-auth.yaml
+# Persona: Driver Ali
+# Goal: Complete QR authentication flow; test 3-attempt limit
+
+# Assumes driver logged in and on journey pre-trip step
+
+# Navigate to QR auth step
+- tapOn:
+    id: "pretrip-qr-auth-step"
+
+# Assert camera opens
+- assertVisible:
+    id: "qr-scanner-screen"
+
+# Maestro injects known good QR (Ali's driver token)
+- injectQrCode: "FLEETOPS:DRIVER:ali@artech.om:TOKEN-ALI-001"
+
+# Assert state transitions
+- assertVisible:
+    id: "qr-state-scanning"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "qr-state-detected"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "qr-state-verifying"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "qr-state-authenticated"
+
+# Assert success message
+- assertVisible:
+    text: "Authenticated as Ali"
+
+# Assert next button is enabled
+- assertEnabled:
+    id: "pretrip-next-button"
+
+# ── 3-attempts limit test ────────────────────────────────────────────────────
+# Re-launch QR auth and inject wrong QR 3 times
+
+- tapOn:
+    id: "pretrip-qr-auth-retry"
+
+# Attempt 1: wrong QR
+- assertVisible:
+    id: "qr-scanner-screen"
+- injectQrCode: "INVALID-QR-CODE-1"
+- assertVisible:
+    id: "qr-state-failed"
+
+- tapOn:
+    id: "qr-retry-button"
+
+# Attempt 2: wrong QR
+- injectQrCode: "INVALID-QR-CODE-2"
+- assertVisible:
+    id: "qr-state-failed"
+
+- tapOn:
+    id: "qr-retry-button"
+
+# Attempt 3: wrong QR — should trigger manual override
+- injectQrCode: "INVALID-QR-CODE-3"
+- assertVisible:
+    id: "qr-state-failed"
+
+# After 3 failures, manual override button must appear
+- assertVisible:
+    id: "qr-manual-override-button"
+
+# Manual override requires HSE approval — assert the flow starts
+- tapOn:
+    id: "qr-manual-override-button"
+- assertVisible:
+    id: "hse-approval-request-screen"

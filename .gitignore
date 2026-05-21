@@ -17,6 +17,9 @@ minio_data/
 # Coverage
 coverage/
 
+# E2E screenshots
+e2e/web/screenshots/
+
 # OS
 *.swp
 *.swo

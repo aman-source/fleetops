@@ -80,10 +80,10 @@ export default function AnalyticsPage() {
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-bg-2 border border-line text-ink-1 text-[12px]">
             <Glyph k="clock" size={12} className="text-ink-3" />May 2026<Glyph k="chevD" size={11} className="text-ink-3" />
           </span>
-          <button className="h-7 px-3 flex items-center gap-1.5 bg-bg-3 border border-line rounded-[6px] text-ink-1 text-[12px] hover:bg-bg-4 transition-colors">
+          <button data-testid="analytics-export-pdf" className="h-7 px-3 flex items-center gap-1.5 bg-bg-3 border border-line rounded-[6px] text-ink-1 text-[12px] hover:bg-bg-4 transition-colors">
             <Glyph k="download" size={13} />Export PDF
           </button>
-          <button className="h-7 px-3 flex items-center gap-1.5 bg-bg-3 border border-line rounded-[6px] text-ink-1 text-[12px] hover:bg-bg-4 transition-colors">
+          <button data-testid="analytics-share-bi" className="h-7 px-3 flex items-center gap-1.5 bg-bg-3 border border-line rounded-[6px] text-ink-1 text-[12px] hover:bg-bg-4 transition-colors">
             <Glyph k="link" size={13} />Share to BI
           </button>
         </div>
@@ -260,7 +260,7 @@ function KPI({ label, value, unit, delta, deltaColor, spark, color }: {
   spark: number[]; color: string;
 }) {
   return (
-    <div className="bg-panel border border-line rounded-[10px] p-3.5 flex-1" style={{ minWidth: 220, minHeight: 120 }}>
+    <div data-testid={`analytics-kpi-${label.toLowerCase().replace(/[\s·\u00b7]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`} className="bg-panel border border-line rounded-[10px] p-3.5 flex-1" style={{ minWidth: 220, minHeight: 120 }}>
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-[0.08em] text-ink-3 font-medium">{label}</span>
         <Glyph k="dots" size={14} className="text-ink-3" />

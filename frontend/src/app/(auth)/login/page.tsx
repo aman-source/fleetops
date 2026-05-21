@@ -43,6 +43,7 @@ export default function LoginPage() {
             </label>
             <input
               type="email"
+              data-testid="auth-email-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full h-9 px-3 bg-surface border border-line rounded-[6px] text-ink-1 text-[13px] outline-none focus:border-primary transition-colors"
@@ -57,6 +58,7 @@ export default function LoginPage() {
             </label>
             <input
               type="password"
+              data-testid="auth-password-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full h-9 px-3 bg-surface border border-line rounded-[6px] text-ink-1 text-[13px] outline-none focus:border-primary transition-colors"
@@ -66,13 +68,14 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="text-nogo text-[12px] bg-nogo-soft px-3 py-2 rounded-[6px]">
+            <div data-testid="auth-error-message" className="text-nogo text-[12px] bg-nogo-soft px-3 py-2 rounded-[6px]">
               {error}
             </div>
           )}
 
           <button
             type="submit"
+            data-testid="auth-submit-button"
             disabled={loading}
             className="h-9 bg-primary hover:bg-primary-2 text-white text-[13px] font-medium rounded-[6px] transition-colors disabled:opacity-50"
           >

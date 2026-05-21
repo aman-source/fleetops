@@ -3,6 +3,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js';
 import { authorize } from '../../shared/middleware/authorize.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess, sendCreated } from '../../shared/response.js';
+import { exportCsv } from '../../shared/csv.js';
 import {
   createDocumentSchema, updateDocumentSchema, documentQuerySchema, expiringQuerySchema,
 } from './documents.schema.js';
@@ -14,6 +15,15 @@ export async function documentRoutes(app: FastifyInstance) {
 
   // GET /documents
   app.get('/documents', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    if (q.format === 'csv') {
+      const query = documentQuerySchema.parse({ ...q, limit: 50000 });
+      const result = await service.listDocuments(request.tenantId, query);
+      return exportCsv(reply, ['Title', 'Type', 'Entity Type', 'Entity ID', 'Status', 'Expiry Date'],
+        result.items as Record<string, unknown>[],
+        'documents.csv',
+        { 'Title': 'title', 'Type': 'docType', 'Entity Type': 'entityType', 'Entity ID': 'entityId', 'Status': 'status', 'Expiry Date': 'expiryDate' });
+    }
     const query = documentQuerySchema.parse(request.query);
     const result = await service.listDocuments(request.tenantId, query);
     return sendSuccess(reply, result.items, 200, result.meta);

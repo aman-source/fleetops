@@ -84,7 +84,7 @@ export default function VehicleProfilePage({ params }: { params: Promise<{ id: s
               ['doc', 'View documents'],
               ['list', 'Audit trail'],
             ] as [string, string][]).map(([icon, label]) => (
-              <button key={label} className="flex items-center gap-2 px-2.5 py-[7px] rounded-[6px] bg-bg-2 border border-line text-ink-1 text-[12px] hover:bg-bg-3 hover:text-ink-0 transition-colors">
+              <button key={label} data-testid={`vehicle-action-${label.toLowerCase().replace(/\s+/g, '-')}`} className="flex items-center gap-2 px-2.5 py-[7px] rounded-[6px] bg-bg-2 border border-line text-ink-1 text-[12px] hover:bg-bg-3 hover:text-ink-0 transition-colors">
                 <Glyph k={icon} size={14} stroke={1.5} />
                 {label}
               </button>
@@ -98,7 +98,7 @@ export default function VehicleProfilePage({ params }: { params: Promise<{ id: s
         {/* Tab bar */}
         <div className="flex gap-0 border-b border-line px-4 bg-bg-1 shrink-0">
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)}
+            <button key={t} onClick={() => setTab(t)} data-testid={`vehicle-tab-${t.toLowerCase()}`}
               className={`px-3 py-2.5 text-[12px] border-b-2 transition-colors whitespace-nowrap ${tab === t ? 'border-[var(--primary)] text-ink-0 font-medium' : 'border-transparent text-ink-2 hover:text-ink-0'}`}>
               {t}
             </button>

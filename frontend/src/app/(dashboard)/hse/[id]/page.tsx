@@ -58,6 +58,7 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
         {incident.status !== 'closed' && (
           <div className="flex items-center gap-2">
             <button onClick={() => escalateMutation.mutate()}
+              data-testid="incident-escalate-button"
               disabled={incident.tier >= 3 || escalateMutation.isPending}
               className="h-7 px-3 flex items-center gap-1.5 bg-[var(--cond)] border border-[var(--cond)] rounded-[6px] text-[#2a1500] text-[12px] font-medium hover:opacity-90 transition-colors disabled:opacity-40">
               <Glyph k="alert" size={13} stroke={2} />Escalate to T{incident.tier + 1}
@@ -79,7 +80,7 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="flex flex-col">
               {steps.map((s, i) => (
-                <div key={s.id} className="flex gap-3 px-4 py-3" style={{ borderBottom: i < steps.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+                <div key={s.id} data-testid={`incident-step-${s.stepNumber}`} className="flex gap-3 px-4 py-3" style={{ borderBottom: i < steps.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
                   {/* Step indicator */}
                   <div className="flex flex-col items-center shrink-0" style={{ width: 24 }}>
                     <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[11px] font-mono font-semibold ${
@@ -99,6 +100,7 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
                       </span>
                       {s.status === 'active' && (
                         <button onClick={() => completeMutation.mutate(s.stepNumber)}
+                          data-testid={`incident-step-${s.stepNumber}-complete`}
                           disabled={completeMutation.isPending}
                           className="h-7 px-3 flex items-center gap-1 bg-[var(--go)] border border-[var(--go)] rounded-[6px] text-[#08251c] text-[11px] font-medium hover:opacity-90 transition-colors disabled:opacity-50">
                           <Glyph k="check" size={12} stroke={2.5} />Complete

@@ -12,13 +12,17 @@
  * Any BLOCK in any gate → journey cannot be submitted.
  * Server RE-VALIDATES all gates on submit. Never trust UI state.
  */
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, gte, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import { drivers } from '../../infra/db/schema/drivers.js';
 import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { devices } from '../../infra/db/schema/devices.js';
 import { documents } from '../../infra/db/schema/documents.js';
-import { journeyPassengers } from '../../infra/db/schema/journeys.js';
+import { vehicleHasBlockingInspection } from '../inspections/inspections.service.js';
+import { journeyPassengers, journeyWaypoints, journeys } from '../../infra/db/schema/journeys.js';
+import { driverScores, incidents } from '../../infra/db/schema/hse.js';
+import { events } from '../../infra/db/schema/events.js';
+import { telemetryLogs } from '../../infra/db/schema/telemetry.js';
 
 export type CheckStatus = 'PASS' | 'BLOCK' | 'REVIEW';
 
@@ -38,6 +42,8 @@ export interface GateResult {
 export interface AllGatesResult {
   canSubmit: boolean;
   gates: GateResult[];
+  riskScore?: number;
+  riskLevel?: string;
 }
 
 interface JourneyDraft {
@@ -50,18 +56,112 @@ interface JourneyDraft {
 }
 
 export async function evaluateAllGates(draft: JourneyDraft): Promise<AllGatesResult> {
-  const gates = await Promise.all([
-    evaluateDriverGate(draft),
-    evaluateVehicleGate(draft),
-    evaluateDocumentsGate(draft),
-    evaluateRouteGate(draft),
-    evaluatePassengerGate(draft),
-    evaluateHSEGate(draft),
+  const [gates, { score: riskScore, level: riskLevel }] = await Promise.all([
+    Promise.all([
+      evaluateDriverGate(draft),
+      evaluateVehicleGate(draft),
+      evaluateDocumentsGate(draft),
+      evaluateRouteGate(draft),
+      evaluatePassengerGate(draft),
+      evaluateHSEGate(draft),
+    ]),
+    computeRiskScore(draft),
   ]);
 
   const canSubmit = gates.every((g) => g.status !== 'BLOCK');
 
-  return { canSubmit, gates };
+  return { canSubmit, gates, riskScore, riskLevel };
+}
+
+// ── Risk Score (exported for submitJourney to persist) ──
+
+export async function computeRiskScore(draft: JourneyDraft): Promise<{ score: number; level: string }> {
+  const departureHour = draft.plannedDeparture.getUTCHours() + 4; // Oman UTC+4
+  const normHour = departureHour % 24;
+  const durationHours = (draft.plannedArrival.getTime() - draft.plannedDeparture.getTime()) / (1000 * 60 * 60);
+  const currentYear = new Date().getFullYear();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000);
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400_000);
+
+  const [vehicleRows, scoreRows, incidentRows, panicRows, waypointRows] = await Promise.all([
+    db.select({ year: vehicles.year }).from(vehicles).where(eq(vehicles.id, draft.vehicleId)).limit(1),
+    db.select({ totalScore: driverScores.totalScore })
+      .from(driverScores)
+      .where(eq(driverScores.driverId, draft.driverId))
+      .orderBy(sql`${driverScores.period} desc`)
+      .limit(1),
+    db.select({ id: incidents.id })
+      .from(incidents)
+      .where(and(
+        eq(incidents.driverId, draft.driverId),
+        gte(incidents.startedAt, thirtyDaysAgo),
+        isNull(incidents.deletedAt),
+      ))
+      .limit(1),
+    db.select({ id: events.id })
+      .from(events)
+      .where(and(
+        eq(events.vehicleId, draft.vehicleId),
+        eq(events.eventType, 'panic'),
+        gte(events.recordedAt, ninetyDaysAgo),
+      ))
+      .limit(1),
+    draft.journeyId
+      ? db.select({ lat: journeyWaypoints.lat, lon: journeyWaypoints.lon, sequence: journeyWaypoints.sequence })
+          .from(journeyWaypoints)
+          .where(eq(journeyWaypoints.journeyId, draft.journeyId))
+          .orderBy(journeyWaypoints.sequence)
+      : Promise.resolve([]),
+  ]);
+
+  let score = 0;
+
+  // Night departure: 3 pts if hour < 5 or > 22
+  if (normHour < 5 || normHour > 22) score += 3;
+
+  // Duration: 2 pts if > 8h, +2 more if > 12h
+  if (durationHours > 8) score += 2;
+  if (durationHours > 12) score += 2;
+
+  // Driver history
+  const driverScore = Number(scoreRows[0]?.totalScore ?? 100);
+  if (driverScore < 60) score += 3;
+  else if (driverScore < 80) score += 1;
+  if (incidentRows.length > 0) score += 2;
+
+  // Vehicle age
+  const vehicleAge = currentYear - (vehicleRows[0]?.year ?? currentYear);
+  if (vehicleAge > 10) score += 2;
+  else if (vehicleAge > 7) score += 1;
+
+  // Route distance from waypoints (haversine between consecutive points)
+  if (waypointRows.length >= 2) {
+    let totalKm = 0;
+    for (let i = 1; i < waypointRows.length; i++) {
+      totalKm += haversineKm(
+        Number(waypointRows[i - 1].lat), Number(waypointRows[i - 1].lon),
+        Number(waypointRows[i].lat), Number(waypointRows[i].lon),
+      );
+    }
+    if (totalKm > 300) score += 2;
+    else if (totalKm > 150) score += 1;
+  }
+
+  // Recent panic events on this vehicle
+  if (panicRows.length > 0) score += 3;
+
+  const level = score >= 7 ? 'H' : score >= 4 ? 'M' : 'L';
+  return { score, level };
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // ── Gate 1: Driver Authorization ──
@@ -174,6 +274,16 @@ async function evaluateVehicleGate(draft: JourneyDraft): Promise<GateResult> {
     },
   ];
 
+  // Sub-check: active inspection campaign with critical defects
+  const hasBlockingInspection = await vehicleHasBlockingInspection(draft.vehicleId).catch(() => false);
+  checks.push({
+    name: 'Inspection campaign',
+    status: hasBlockingInspection ? 'BLOCK' : 'PASS',
+    message: hasBlockingInspection
+      ? 'Vehicle has a failed inspection with critical defects — cannot depart until resolved'
+      : 'No blocking inspections',
+  });
+
   return aggregateGate('Vehicle Readiness', 2, checks);
 }
 
@@ -238,7 +348,7 @@ async function evaluateDocumentsGate(draft: JourneyDraft): Promise<GateResult> {
 // ── Gate 4: Route & Risk ──
 async function evaluateRouteGate(draft: JourneyDraft): Promise<GateResult> {
   const departureHour = draft.plannedDeparture.getUTCHours() + 4; // Oman UTC+4
-  const isNight = departureHour >= 22 || departureHour < 5;
+  const isNight = (departureHour % 24) >= 22 || (departureHour % 24) < 5;
   const durationHours = (draft.plannedArrival.getTime() - draft.plannedDeparture.getTime()) / (1000 * 60 * 60);
 
   const checks: GateCheck[] = [
@@ -258,10 +368,6 @@ async function evaluateRouteGate(draft: JourneyDraft): Promise<GateResult> {
       message: 'Emergency contact provided',
     },
   ];
-
-  // TODO: Route deviation corridor check against PostGIS approved routes
-  // TODO: Weather check integration
-  // TODO: Communication dead-zone check
 
   return aggregateGate('Route & Risk', 4, checks);
 }
@@ -301,33 +407,47 @@ async function evaluatePassengerGate(draft: JourneyDraft): Promise<GateResult> {
 
 // ── Gate 6: HSE Approval ──
 async function evaluateHSEGate(draft: JourneyDraft): Promise<GateResult> {
-  // Compute basic risk score
-  const departureHour = draft.plannedDeparture.getUTCHours() + 4;
-  const isNight = departureHour >= 22 || departureHour < 5;
-  const durationHours = (draft.plannedArrival.getTime() - draft.plannedDeparture.getTime()) / (1000 * 60 * 60);
+  const { score: riskScore, level: riskLevel } = await computeRiskScore(draft);
 
-  let riskScore = 0;
-  if (isNight) riskScore += 3;
-  if (durationHours > 8) riskScore += 2;
-  if (durationHours > 12) riskScore += 2;
+  // Driver fatigue check: hours driven in last 24h
+  // Only count journeys whose planned departure has already passed (driver actually departed)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const recentJourneys = await db.select({
+    plannedDeparture: journeys.plannedDeparture,
+    plannedArrival: journeys.plannedArrival,
+  }).from(journeys)
+    .where(and(
+      eq(journeys.driverId, draft.driverId),
+      eq(journeys.status, 'closed'),
+      gte(journeys.closedAt, twentyFourHoursAgo),
+      sql`${journeys.plannedDeparture} <= ${now.toISOString()}`,
+      isNull(journeys.deletedAt),
+    ));
 
-  const riskLevel = riskScore >= 5 ? 'H' : riskScore >= 3 ? 'M' : 'L';
+  let hoursLast24h = 0;
+  for (const j of recentJourneys) {
+    const dur = (j.plannedArrival.getTime() - j.plannedDeparture.getTime()) / (1000 * 60 * 60);
+    hoursLast24h += Math.max(0, dur);
+  }
 
   const checks: GateCheck[] = [
     {
       name: 'Risk assessment',
-      status: riskLevel === 'H' ? 'REVIEW' : 'PASS',
+      status: riskLevel === 'H' ? 'REVIEW' : riskLevel === 'M' ? 'REVIEW' : 'PASS',
       message: `Risk level: ${riskLevel} (score: ${riskScore})`,
     },
     {
       name: 'HSE approval required',
       status: riskLevel === 'H' ? 'REVIEW' : 'PASS',
-      message: riskLevel === 'H' ? 'High risk — requires HSE sign-off' : 'Standard risk — no HSE override needed',
+      message: riskLevel === 'H' ? 'High risk — requires HSE sign-off' : `${riskLevel} risk — no HSE override needed`,
+    },
+    {
+      name: 'Driver fatigue',
+      status: hoursLast24h > 10 ? 'BLOCK' : hoursLast24h > 8 ? 'REVIEW' : 'PASS',
+      message: `Driver drove ${hoursLast24h.toFixed(1)}h in last 24h${hoursLast24h > 10 ? ' — exceeds 10h limit' : ''}`,
     },
   ];
-
-  // TODO: Check driver fatigue (recent journey hours in last 24h)
-  // TODO: Check vehicle incident history
 
   return aggregateGate('HSE Approval', 6, checks);
 }

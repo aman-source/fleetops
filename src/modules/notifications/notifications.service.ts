@@ -1,9 +1,16 @@
-import { eq, and, lt, desc } from 'drizzle-orm';
+import { eq, and, lt, desc, gte } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
-import { notifications, notificationPreferences } from '../../infra/db/schema/notifications.js';
+import { notifications, notificationPreferences, notificationDeliveries } from '../../infra/db/schema/notifications.js';
+import { users } from '../../infra/db/schema/users.js';
+import { roles } from '../../infra/db/schema/roles.js';
 import { redis } from '../../infra/redis/client.js';
 import { getQueue, createWorker } from '../../infra/queue/bull.js';
 import { paginationMeta } from '../../shared/pagination.js';
+import { sendEmail } from './channels/email.js';
+import { sendSms } from './channels/sms.js';
+import { sendWhatsApp } from './channels/whatsapp.js';
+import { sendPush } from './channels/push.js';
+import { getTemplate, renderTemplate } from './templates/index.js';
 
 const QUEUE_NAME = 'notifications';
 
@@ -90,37 +97,146 @@ export async function queueNotification(payload: NotificationPayload, priority =
 
 /**
  * Start notification delivery worker.
+ * Looks up user preferences + profile, renders template, dispatches to each channel.
  */
 export function startNotificationWorker() {
-  return createWorker<NotificationPayload>(QUEUE_NAME, async (job) => {
-    const { channel, userId, title, body } = job.data;
+  // Escalation cron: every 5 minutes check unacknowledged critical notifications > 10 min old
+  const escalationQueue = getQueue('notification-escalation');
+  escalationQueue.add('check', {}, {
+    repeat: { every: 5 * 60 * 1000 },
+    jobId: 'escalation-cron',
+    removeOnComplete: 1,
+  }).catch(() => {});
 
-    switch (channel) {
-      case 'email':
-        // TODO: nodemailer integration
-        break;
-      case 'sms':
-        // TODO: Twilio/gateway integration
-        break;
-      case 'whatsapp':
-        // TODO: WhatsApp Business API
-        break;
-      case 'push':
-        // TODO: Expo push notifications
-        break;
-      case 'inapp':
-        // Already stored in DB + pushed via WebSocket
-        break;
+  createWorker('notification-escalation', async (_job) => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    // Find critical unread notifications older than 10 min
+    const unacknowledged = await db.select({
+      id: notifications.id,
+      userId: notifications.userId,
+      type: notifications.type,
+      title: notifications.title,
+      body: notifications.body,
+    }).from(notifications)
+      .where(and(
+        eq(notifications.status, 'sent'),
+        eq(notifications.read, false),
+      ));
+
+    for (const notif of unacknowledged) {
+      // Re-queue with higher priority to next role tier
+      await getQueue(QUEUE_NAME).add('send', {
+        userId: notif.userId,
+        type: notif.type,
+        title: `[ESCALATED] ${notif.title}`,
+        body: notif.body,
+        channel: 'email',
+        data: { escalated: true, originalNotificationId: notif.id },
+      }, { priority: 1, removeOnComplete: true });
+    }
+  }, { concurrency: 1 });
+
+  return createWorker<NotificationPayload>(QUEUE_NAME, async (job) => {
+    const { userId, type, title, body, channel, data } = job.data;
+
+    // Get user's channels from preferences (fall back to job channel)
+    const prefs = await db.select().from(notificationPreferences)
+      .where(and(
+        eq(notificationPreferences.userId, userId),
+        eq(notificationPreferences.eventType, type),
+        eq(notificationPreferences.enabled, true),
+      )).limit(1);
+
+    const enabledChannels: string[] = prefs[0]?.channels ?? [channel];
+
+    // Get user profile for email/phone/push_token
+    const userRows = await db.select({
+      email: users.email,
+      phone: users.phone,
+      pushToken: users.pushToken,
+    }).from(users).where(eq(users.id, userId)).limit(1);
+
+    const profile = userRows[0];
+    if (!profile) return;
+
+    // Get template for this event type
+    const tpl = getTemplate(type);
+    const templateVars = {
+      time: new Date().toISOString(),
+      ...data,
+    } as Record<string, unknown>;
+
+    // Find the notification row to link deliveries
+    const notifRows = await db.select({ id: notifications.id })
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, type),
+        eq(notifications.status, 'pending'),
+      ))
+      .orderBy(desc(notifications.createdAt))
+      .limit(1);
+
+    const notifId = notifRows[0]?.id;
+
+    const recordDelivery = async (ch: string, result: { success: boolean; providerId?: string; error?: string }) => {
+      if (!notifId) return;
+      await db.insert(notificationDeliveries).values({
+        notificationId: notifId,
+        channel: ch,
+        providerId: result.providerId,
+        status: result.success ? 'sent' : 'failed',
+        sentAt: result.success ? new Date() : null,
+        error: result.error,
+      });
+    };
+
+    // Dispatch to each enabled channel
+    for (const ch of enabledChannels) {
+      switch (ch) {
+        case 'email':
+          if (profile.email && tpl) {
+            const subject = renderTemplate(tpl.subject, templateVars);
+            const html = renderTemplate(tpl.html, templateVars);
+            const text = renderTemplate(tpl.text, templateVars);
+            const result = await sendEmail(profile.email, subject, html, text);
+            await recordDelivery('email', result);
+          }
+          break;
+
+        case 'sms':
+          if (profile.phone && tpl) {
+            const smsBody = renderTemplate(tpl.sms, templateVars);
+            const result = await sendSms(profile.phone, smsBody);
+            await recordDelivery('sms', result);
+          }
+          break;
+
+        case 'whatsapp':
+          if (profile.phone && tpl) {
+            const wabody = renderTemplate(tpl.text, templateVars);
+            const result = await sendWhatsApp(profile.phone, wabody);
+            await recordDelivery('whatsapp', result);
+          }
+          break;
+
+        case 'push':
+          if (profile.pushToken) {
+            const result = await sendPush(profile.pushToken, title, body, data);
+            await recordDelivery('push', result);
+          }
+          break;
+
+        case 'inapp':
+          // Already stored + pushed in queueNotification
+          break;
+      }
     }
 
-    // Mark as sent
-    await db.update(notifications).set({
-      status: 'sent',
-      sentAt: new Date(),
-    }).where(and(
-      eq(notifications.userId, userId),
-      eq(notifications.type, job.data.type),
-      eq(notifications.status, 'pending'),
-    ));
+    // Mark notification as sent
+    if (notifId) {
+      await db.update(notifications).set({ status: 'sent', sentAt: new Date() })
+        .where(eq(notifications.id, notifId));
+    }
   }, { concurrency: 10 });
 }

@@ -212,3 +212,32 @@ export async function getLtiDays(tenantId: string): Promise<{ daysSinceLti: numb
   const daysSinceLti = Math.floor(ms / 86400_000);
   return { daysSinceLti, lastLtiDate: rows[0].closedAt.toISOString() };
 }
+
+export async function getOperationalRisks(tenantId: string): Promise<Array<{
+  type: string; severity: string; count: number; description: string;
+}>> {
+  const risks: Array<{ type: string; severity: string; count: number; description: string }> = [];
+
+  const incidentRows = await db.select({ cnt: count() }).from(incidents)
+    .where(and(eq(incidents.orgId, tenantId), sql`${incidents.status} != 'closed'`, isNull(incidents.deletedAt)));
+  const activeIncidents = Number(incidentRows[0]?.cnt ?? 0);
+  if (activeIncidents > 0) {
+    risks.push({ type: 'active_incident', severity: 'critical', count: activeIncidents, description: `${activeIncidents} active HSE incident(s)` });
+  }
+
+  const hseHoldRows = await db.select({ cnt: count() }).from(vehicles)
+    .where(sql`${vehicles.status} = 'hse_hold'`);
+  const hseHold = Number(hseHoldRows[0]?.cnt ?? 0);
+  if (hseHold > 0) {
+    risks.push({ type: 'hse_hold', severity: 'high', count: hseHold, description: `${hseHold} vehicle(s) on HSE hold` });
+  }
+
+  const noGoRows = await db.select({ cnt: count() }).from(vehicles)
+    .where(sql`${vehicles.status} = 'no_go'`);
+  const noGo = Number(noGoRows[0]?.cnt ?? 0);
+  if (noGo > 0) {
+    risks.push({ type: 'no_go_vehicles', severity: 'medium', count: noGo, description: `${noGo} vehicle(s) in no-go status` });
+  }
+
+  return risks;
+}

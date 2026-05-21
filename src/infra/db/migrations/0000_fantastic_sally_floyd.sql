@@ -399,7 +399,7 @@ CREATE TABLE "vehicles" (
 	"deleted_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "chk_plate_format" CHECK ("vehicles"."plate_no" ~ '^d{1,2}-[A-Z]-d{3,4}$')
+	CONSTRAINT "chk_plate_format" CHECK ("vehicles"."plate_no" ~ '^[0-9]{1,2}-[A-Z]-[0-9]{3,4}$')
 );
 --> statement-breakpoint
 CREATE TABLE "work_order_activity" (

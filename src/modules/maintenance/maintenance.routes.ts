@@ -3,6 +3,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js';
 import { authorize } from '../../shared/middleware/authorize.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess, sendCreated } from '../../shared/response.js';
+import { exportCsv } from '../../shared/csv.js';
 import {
   createWOSchema, updateWOSchema, releaseSchema, woQuerySchema,
   addPartSchema, createTireSchema, updateTireSchema, tireQuerySchema,
@@ -18,6 +19,15 @@ export async function maintenanceRoutes(app: FastifyInstance) {
   // ═══════════════════════════════════════
 
   app.get('/work-orders', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    if (q.format === 'csv') {
+      const query = woQuerySchema.parse({ ...q, limit: 50000 });
+      const result = await service.listWorkOrders(request.tenantId, query);
+      return exportCsv(reply, ['WO No', 'Vehicle', 'Type', 'Status', 'Priority', 'Assigned To', 'Created At'],
+        result.items as Record<string, unknown>[],
+        'work-orders.csv',
+        { 'WO No': 'woNo', 'Vehicle': 'vehicleId', 'Type': 'type', 'Status': 'status', 'Priority': 'priority', 'Assigned To': 'assignedTo', 'Created At': 'createdAt' });
+    }
     const query = woQuerySchema.parse(request.query);
     const result = await service.listWorkOrders(request.tenantId, query);
     return sendSuccess(reply, result.items, 200, result.meta);

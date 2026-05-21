@@ -1,8 +1,9 @@
-import { eq, and, isNull, ilike, or, lt } from 'drizzle-orm';
+import { eq, and, isNull, ilike, or, lt, desc } from 'drizzle-orm';
 import { db } from '../../infra/db/client.js';
 import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { drivers } from '../../infra/db/schema/drivers.js';
 import { devices } from '../../infra/db/schema/devices.js';
+import { driverNfcCards } from '../../infra/db/schema/nfc-cards.js';
 import { VEHICLE_STATUS_TRANSITIONS, type VehicleStatus } from '../../infra/db/schema/vehicles.js';
 import { NotFoundError, ConflictError, BadRequestError } from '../../shared/errors.js';
 import { paginationMeta } from '../../shared/pagination.js';
@@ -174,7 +175,7 @@ export async function updateDriver(tenantId: string, driverId: string, input: Up
   return updated;
 }
 
-export async function assignNfc(tenantId: string, driverId: string, nfcCardUid: string) {
+export async function assignNfc(tenantId: string, driverId: string, nfcCardUid: string, issuedBy?: string) {
   const existing = await getDriver(tenantId, driverId);
 
   // Check NFC not already assigned to another driver
@@ -188,6 +189,18 @@ export async function assignNfc(tenantId: string, driverId: string, nfcCardUid: 
     throw new ConflictError(`NFC card ${nfcCardUid} already assigned to another driver`);
   }
 
+  // Revoke any existing active card for this driver in history table
+  await db.update(driverNfcCards)
+    .set({ revokedAt: new Date(), revokedBy: issuedBy ?? null, revokeReason: 'New card assigned' })
+    .where(and(eq(driverNfcCards.driverId, driverId), isNull(driverNfcCards.revokedAt)));
+
+  // Record in history
+  await db.insert(driverNfcCards).values({
+    driverId,
+    cardUid: nfcCardUid,
+    issuedBy: issuedBy ?? null,
+  });
+
   const [updated] = await db
     .update(drivers)
     .set({ nfcCardUid, nfcIssuedAt: new Date(), updatedAt: new Date() })
@@ -197,8 +210,13 @@ export async function assignNfc(tenantId: string, driverId: string, nfcCardUid: 
   return updated;
 }
 
-export async function revokeNfc(tenantId: string, driverId: string) {
+export async function revokeNfc(tenantId: string, driverId: string, revokedBy?: string) {
   const existing = await getDriver(tenantId, driverId);
+
+  // Record revocation in history
+  await db.update(driverNfcCards)
+    .set({ revokedAt: new Date(), revokedBy: revokedBy ?? null })
+    .where(and(eq(driverNfcCards.driverId, driverId), isNull(driverNfcCards.revokedAt)));
 
   const [updated] = await db
     .update(drivers)
@@ -207,6 +225,13 @@ export async function revokeNfc(tenantId: string, driverId: string) {
     .returning();
 
   return updated;
+}
+
+export async function getNfcHistory(tenantId: string, driverId: string) {
+  await getDriver(tenantId, driverId);
+  return db.select().from(driverNfcCards)
+    .where(eq(driverNfcCards.driverId, driverId))
+    .orderBy(desc(driverNfcCards.issuedAt));
 }
 
 // ═══════════════════════════════════════════

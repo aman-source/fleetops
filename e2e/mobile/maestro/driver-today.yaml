@@ -1,0 +1,49 @@
+appId: com.artech.fleetops
+---
+# Mobile.1 driver-today.yaml
+# Persona: Driver Ali
+# Goal: Launch app, login, see assigned journey
+
+- launchApp:
+    clearState: true
+
+# Login screen
+- assertVisible:
+    id: "auth-email-input"
+- tapOn:
+    id: "auth-email-input"
+- inputText: "ali@artech.om"
+- tapOn:
+    id: "auth-password-input"
+- inputText: "Test1234!"
+- tapOn:
+    id: "auth-submit-button"
+
+# Wait for home screen
+- waitForAnimationToEnd
+
+# Navigate to Driver tab
+- tapOn:
+    id: "tab-driver"
+
+# Assert Today screen loaded
+- assertVisible:
+    id: "driver-today-screen"
+
+# Assert assigned journey card is visible
+- assertVisible:
+    id: "driver-journey-card"
+
+# Assert plate is shown on card
+- assertVisible:
+    text: "12-A-3471"
+
+# Assert destination is shown
+- assertVisible:
+    id: "driver-journey-destination"
+
+# Assert start pre-trip button is enabled
+- assertVisible:
+    id: "checklist-start-pretrip"
+- assertEnabled:
+    id: "checklist-start-pretrip"

@@ -68,7 +68,7 @@ export const updateDeviceSchema = createDeviceSchema.partial();
 // ── Query ──
 export const vehicleQuerySchema = z.object({
   cursor: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(50000).default(25),
   status: z.enum(VEHICLE_STATUSES).optional(),
   type: z.enum(VEHICLE_TYPES).optional(),
   projectId: z.string().uuid().optional(),

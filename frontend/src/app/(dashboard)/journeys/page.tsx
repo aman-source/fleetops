@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
 import { Combobox } from '@/components/ui/combobox';
+import { GeocoderInput } from '@/components/ui/geocoder-input';
 
 interface Journey { id: string; journeyNo: string; vehicleId: string; driverId: string; purpose: string | null; plannedDeparture: string; plannedArrival: string; riskLevel: string | null; status: string; }
 interface Vehicle { id: string; plateNo: string; fleetNo: string | null; make: string; model: string; type: string; seatCount: number; status: string; }
@@ -44,7 +45,7 @@ export default function JourneysPage() {
             <option value="rejected">Rejected</option>
           </select>
           <div className="flex-1" />
-          <button onClick={() => setShowModal(true)} className="h-8 px-4 bg-[var(--primary)] hover:bg-[var(--primary-2)] text-white text-[12px] font-medium rounded-[6px] transition-colors">+ New Journey</button>
+          <button data-testid="journey-list-new-button" onClick={() => setShowModal(true)} className="h-8 px-4 bg-[var(--primary)] hover:bg-[var(--primary-2)] text-white text-[12px] font-medium rounded-[6px] transition-colors">+ New Journey</button>
         </div>
         <div className="bg-panel border border-line rounded-[10px] overflow-hidden">
           <table className="w-full text-[12px]">
@@ -60,13 +61,13 @@ export default function JourneysPage() {
               {isLoading && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && journeys?.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">No journeys found</td></tr>}
               {journeys?.map((j) => (
-                <tr key={j.id} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/journeys/${j.id}`}>
+                <tr key={j.id} data-testid={`journey-row-${j.id}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/journeys/${j.id}`}>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{j.journeyNo}</td>
                   <td className="px-3 py-2.5 text-ink-0">{j.purpose || '\u2014'}</td>
                   <td className="px-3 py-2.5 text-ink-1 font-mono text-[11px]">{new Date(j.plannedDeparture).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="px-3 py-2.5 text-ink-1 font-mono text-[11px]">{new Date(j.plannedArrival).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="px-3 py-2.5">{j.riskLevel && <span className={`font-bold ${RISK_COLORS[j.riskLevel] || 'text-ink-2'}`}>{j.riskLevel}</span>}</td>
-                  <td className="px-3 py-2.5"><span className={`inline-block px-2 py-0.5 rounded-[4px] text-[11px] font-medium ${STATUS_COLORS[j.status] || 'bg-neutral-soft text-neutral'}`}>{j.status.replace(/_/g, ' ')}</span></td>
+                  <td className="px-3 py-2.5"><span data-testid={`journey-status-${j.id}`} className={`inline-block px-2 py-0.5 rounded-[4px] text-[11px] font-medium ${STATUS_COLORS[j.status] || 'bg-neutral-soft text-neutral'}`}>{j.status.replace(/_/g, ' ')}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -78,15 +79,38 @@ export default function JourneysPage() {
   );
 }
 
+interface WaypointDraft { name: string; lat: string; lon: string; }
+
 function NewJourneyModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [error, setError] = useState('');
   const [form, setForm] = useState({ vehicleId: '', driverId: '', purpose: '', plannedDeparture: '', plannedArrival: '', emergencyContact: '' });
+  const [origin, setOrigin] = useState<WaypointDraft>({ name: '', lat: '', lon: '' });
+  const [destination, setDestination] = useState<WaypointDraft>({ name: '', lat: '', lon: '' });
   const { data: vehicles } = useQuery({ queryKey: ['vehicles-for-journey'], queryFn: async () => unwrap<Vehicle[]>(await api.get('/vehicles?limit=100')) });
   const { data: drivers } = useQuery({ queryKey: ['drivers-for-journey'], queryFn: async () => unwrap<Driver[]>(await api.get('/drivers?status=active&limit=100')) });
   const vehicleOptions = (vehicles || []).filter((v: Vehicle) => v.status === 'available' || v.status === 'conditional').map((v: Vehicle) => ({ value: v.id, label: v.plateNo + ' \u2014 ' + v.make + ' ' + v.model, sub: v.type + ' \u00b7 ' + v.seatCount + ' seats' + (v.fleetNo ? ' \u00b7 ' + v.fleetNo : '') }));
   const driverOptions = (drivers || []).map((d: Driver) => ({ value: d.id, label: d.name, sub: (d.employeeId || 'No ID') + ' \u00b7 Class ' + d.licenseClass }));
+
+  const buildWaypoints = () => {
+    const wps = [];
+    if (origin.lat && origin.lon) {
+      wps.push({ sequence: 1, name: origin.name || 'Origin', lat: Number(origin.lat), lon: Number(origin.lon) });
+    }
+    if (destination.lat && destination.lon) {
+      wps.push({ sequence: 2, name: destination.name || 'Destination', lat: Number(destination.lat), lon: Number(destination.lon) });
+    }
+    return wps;
+  };
+
   const mutation = useMutation({
-    mutationFn: async () => { await api.post('/journeys', { ...form, plannedDeparture: new Date(form.plannedDeparture).toISOString(), plannedArrival: new Date(form.plannedArrival).toISOString() }); },
+    mutationFn: async () => {
+      await api.post('/journeys', {
+        ...form,
+        plannedDeparture: new Date(form.plannedDeparture).toISOString(),
+        plannedArrival: new Date(form.plannedArrival).toISOString(),
+        waypoints: buildWaypoints(),
+      });
+    },
     onSuccess: onCreated,
     onError: (err: unknown) => { setError((err as Record<string, any>)?.response?.data?.error || 'Failed to create journey'); },
   });
@@ -107,6 +131,38 @@ function NewJourneyModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <label className="text-ink-2 text-[11px] uppercase tracking-wider font-medium mb-1.5 block">Purpose</label>
             <input type="text" value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Crew transport Marmul \u2192 Nimr-2" className="w-full h-10 px-3 bg-surface border border-line rounded-[6px] text-ink-0 text-[13px] outline-none focus:border-[var(--primary)] transition-colors" />
           </div>
+
+          {/* Route waypoints */}
+          <div>
+            <label className="text-ink-2 text-[11px] uppercase tracking-wider font-medium mb-1.5 block">Route</label>
+            <div className="flex flex-col gap-2 bg-bg-2 border border-line rounded-[8px] p-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--go)] shrink-0" />
+                <div className="flex-1">
+                  <div className="text-[10px] text-ink-3 font-mono mb-1">ORIGIN</div>
+                  <GeocoderInput
+                    placeholder="Search origin location\u2026"
+                    proximityLon={55.20}
+                    proximityLat={18.13}
+                    onSelect={(r) => setOrigin({ name: r.name, lat: String(r.lat), lon: String(r.lon) })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--nogo)] shrink-0" />
+                <div className="flex-1">
+                  <div className="text-[10px] text-ink-3 font-mono mb-1">DESTINATION</div>
+                  <GeocoderInput
+                    placeholder="Search destination location\u2026"
+                    proximityLon={55.20}
+                    proximityLat={18.13}
+                    onSelect={(r) => setDestination({ name: r.name, lat: String(r.lat), lon: String(r.lon) })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-ink-2 text-[11px] uppercase tracking-wider font-medium mb-1.5 block">Departure</label>

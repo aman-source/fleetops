@@ -14,5 +14,12 @@ export { journeys, journeyPassengers, journeyWaypoints, journeyApprovals } from 
 export { workOrders, workOrderParts, workOrderPhotos, workOrderActivity, tires } from './maintenance';
 export { incidents, incidentSteps, driverScores } from './hse';
 export { passengerRequests, transportEntitlements, requestPools, boardingEvents } from './passenger';
-export { notifications, notificationPreferences } from './notifications';
+export { notifications, notificationPreferences, notificationDeliveries } from './notifications';
 export { workflows, workflowVersions, workflowExecutions } from './workflows';
+export { geofences, journeyRouteCorridors } from './geofences';
+export { jobPlans, jobWaypoints, jobProofs } from './job-plans';
+export { loadingSegments, loadingEvidence } from './loading';
+export { inspectionCampaigns, inspectionAssignments, inspectionItems, inspectionResponses } from './inspections';
+export { driverNfcCards } from './nfc-cards';
+export { checklistTemplates, checklistItems } from './checklists';
+export { reports, scheduledReports } from './reports';

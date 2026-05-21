@@ -2,6 +2,7 @@ packages:
   - packages/*
   - frontend
   - mobile
+  - e2e/web
 
 ignoredBuiltDependencies:
   - bcrypt

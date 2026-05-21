@@ -40,7 +40,7 @@ export async function createWorkflow(tenantId: string, input: {
     edges: [],
   });
 
-  return wf;
+  return { ...wf, status: 'draft' };
 }
 
 export async function saveDraft(tenantId: string, workflowId: string, draft: {

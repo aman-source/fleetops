@@ -68,6 +68,7 @@ export default function WODetailPage({ params }: { params: Promise<{ id: string 
         <div className="flex-1" />
         {wo.status !== 'closed' && !wo.releaseDecision && (
           <button onClick={() => setShowRelease(true)}
+            data-testid="wo-release-decision-button"
             className="h-7 px-3 flex items-center gap-1.5 bg-[var(--primary)] border border-[var(--primary)] rounded-[6px] text-white text-[12px] font-medium hover:bg-[var(--primary-2)] transition-colors">
             <Glyph k="shieldChk" size={14} stroke={1.8} />Release Decision
           </button>
@@ -155,7 +156,7 @@ export default function WODetailPage({ params }: { params: Promise<{ id: string 
             <form onSubmit={(e) => { e.preventDefault(); releaseMutation.mutate(); }} className="px-5 py-4 flex flex-col gap-4">
               <div className="flex gap-2">
                 {(['go', 'conditional', 'no_go'] as const).map(d => (
-                  <button key={d} type="button" onClick={() => setReleaseForm(f => ({ ...f, decision: d }))}
+                  <button key={d} type="button" data-testid={`wo-release-${d}`} onClick={() => setReleaseForm(f => ({ ...f, decision: d }))}
                     className={`flex-1 h-12 rounded-[8px] border-2 flex flex-col items-center justify-center gap-0.5 transition-colors ${
                       releaseForm.decision === d
                         ? d === 'go' ? 'border-[var(--go)] bg-[var(--go-soft)]' : d === 'conditional' ? 'border-[var(--cond)] bg-[var(--cond-soft)]' : 'border-[var(--nogo)] bg-[var(--nogo-soft)]'
@@ -172,18 +173,20 @@ export default function WODetailPage({ params }: { params: Promise<{ id: string 
               <div>
                 <label className="text-ink-2 text-[11px] uppercase tracking-wider font-medium mb-1.5 block">Reason</label>
                 <textarea value={releaseForm.reason} onChange={e => setReleaseForm(f => ({ ...f, reason: e.target.value }))}
+                  data-testid="wo-release-reason"
                   className="w-full h-20 px-3 py-2 bg-surface border border-line rounded-[6px] text-ink-0 text-[13px] outline-none focus:border-[var(--primary)] resize-none" required />
               </div>
               {releaseForm.decision === 'conditional' && (
                 <div>
                   <label className="text-ink-2 text-[11px] uppercase tracking-wider font-medium mb-1.5 block">Conditional Expiry</label>
                   <input type="datetime-local" value={releaseForm.releaseExpiry} onChange={e => setReleaseForm(f => ({ ...f, releaseExpiry: e.target.value }))}
+                    data-testid="wo-conditional-expiry-input"
                     className="w-full h-10 px-3 bg-surface border border-line rounded-[6px] text-ink-0 text-[13px] outline-none focus:border-[var(--primary)]" required />
                 </div>
               )}
               <div className="flex justify-end gap-3 pt-1">
                 <button type="button" onClick={() => setShowRelease(false)} className="h-9 px-4 text-ink-2 text-[13px]">Cancel</button>
-                <button type="submit" disabled={releaseMutation.isPending}
+                <button type="submit" data-testid="wo-release-submit" disabled={releaseMutation.isPending}
                   className={`h-9 px-5 rounded-[6px] text-[13px] font-medium transition-colors disabled:opacity-50 ${
                     releaseForm.decision === 'go' ? 'bg-[var(--go)] text-[#08251c]' :
                     releaseForm.decision === 'conditional' ? 'bg-[var(--cond)] text-[#2a1500]' :

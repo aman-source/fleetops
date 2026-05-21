@@ -10,6 +10,22 @@ const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * No manual audit calls needed in route handlers.
  */
 export function registerAuditHook(app: FastifyInstance) {
+  // Capture entity ID from POST/PUT response bodies before they're sent
+  app.addHook('onSend', async (request, _reply, payload) => {
+    if (request.method !== 'POST' && request.method !== 'PUT') return payload;
+    try {
+      const raw = typeof payload === 'string' ? payload : null;
+      if (raw) {
+        const body = JSON.parse(raw);
+        const id = body?.data?.id ?? body?.id;
+        if (id && isUuid(String(id))) {
+          (request as any)._auditEntityId = String(id);
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return payload;
+  });
+
   app.addHook('onResponse', async (request, reply) => {
     if (!MUTATION_METHODS.has(request.method)) return;
 
@@ -22,7 +38,8 @@ export function registerAuditHook(app: FastifyInstance) {
     // Extract entity type from URL pattern: /api/v1/{entity}/...
     const urlParts = request.url.split('/').filter(Boolean);
     const entityType = urlParts[2] ?? 'unknown'; // e.g., 'vehicles', 'journeys'
-    const entityId = urlParts[3] && isUuid(urlParts[3]) ? urlParts[3] : null;
+    // Prefer response-captured ID (for creations), fall back to URL segment
+    const entityId = (request as any)._auditEntityId ?? (urlParts[3] && isUuid(urlParts[3]) ? urlParts[3] : null);
 
     try {
       await db.insert(auditLogs).values({

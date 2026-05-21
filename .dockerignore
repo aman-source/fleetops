@@ -1,0 +1,13 @@
+node_modules
+frontend/node_modules
+frontend/.next
+mobile/node_modules
+e2e/web/node_modules
+e2e/mobile/node_modules
+packages/*/node_modules
+dist
+.git
+playwright-report
+test-results
+*.log
+.env.local

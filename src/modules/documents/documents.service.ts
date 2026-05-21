@@ -5,6 +5,7 @@ import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { NotFoundError } from '../../shared/errors.js';
 import { paginationMeta } from '../../shared/pagination.js';
 import { uploadFile } from '../../infra/storage/s3.js';
+import { stripExif } from '../../shared/image.js';
 import { scheduleExpiryReminders, cancelExpiryReminders } from './documents.expiry.js';
 import type { CreateDocumentInput, UpdateDocumentInput } from './documents.schema.js';
 
@@ -50,7 +51,8 @@ export async function createDocument(
 
   if (file) {
     const key = `documents/${input.entityType}/${input.entityId}/${input.documentType}-${Date.now()}-${file.filename}`;
-    await uploadFile(key, file.buffer, file.mimetype);
+    const cleanBuffer = await stripExif(file.buffer, file.mimetype);
+    await uploadFile(key, cleanBuffer, file.mimetype);
     fileUrl = key;
   }
 
@@ -86,7 +88,8 @@ export async function updateDocument(
   let fileUrl = existing.fileUrl;
   if (file) {
     const key = `documents/${existing.entityType}/${existing.entityId}/${existing.documentType}-${Date.now()}-${file.filename}`;
-    await uploadFile(key, file.buffer, file.mimetype);
+    const cleanBuffer = await stripExif(file.buffer, file.mimetype);
+    await uploadFile(key, cleanBuffer, file.mimetype);
     fileUrl = key;
   }
 

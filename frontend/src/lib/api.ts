@@ -22,7 +22,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
+    const isLoginRequest = error.config?.url?.endsWith('/auth/login');
+    if (error.response?.status === 401 && typeof window !== 'undefined' && !isLoginRequest) {
       // Try refresh
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken && !error.config._retry) {

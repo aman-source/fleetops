@@ -92,7 +92,7 @@ export default function HSEConsolePage() {
         {/* KPI strip */}
         <div className="grid grid-cols-4 gap-3 mb-5">
           {kpis.map(k => (
-            <div key={k.label} className="bg-panel border border-line rounded-[10px] px-3.5 py-3 flex items-start justify-between" style={{ minHeight: 100 }}>
+            <div key={k.label} data-testid={`hse-kpi-${k.label.toLowerCase().replace(/\s+/g, '-').replace(/[·]/g, '').trim()}`} className="bg-panel border border-line rounded-[10px] px-3.5 py-3 flex items-start justify-between" style={{ minHeight: 100 }}>
               <div>
                 <div className="text-[10px] uppercase tracking-[0.08em] text-ink-3 font-medium">{k.label}</div>
                 <div className="text-[32px] font-mono font-semibold leading-tight mt-1" style={{ color: k.color }}>{k.value}</div>
@@ -106,7 +106,7 @@ export default function HSEConsolePage() {
         {/* 2-column layout */}
         <div className="grid grid-cols-[1fr_1fr] gap-5" style={{ minHeight: 400 }}>
           {/* LEFT: Active incidents */}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3" data-testid="hse-active-incidents-section">
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-semibold text-ink-0">Active Incidents</span>
               <span className="text-[11px] text-ink-3 font-mono">{totalActive} open</span>
@@ -123,7 +123,7 @@ export default function HSEConsolePage() {
               const progress = stepIdx >= 0 ? ((stepIdx + 1) / PLAYBOOK_STEPS.length) * 100 : 0;
               const elapsed = getElapsed(inc.startedAt);
               return (
-                <div key={inc.id} className="bg-panel border border-line rounded-[10px] p-3.5 cursor-pointer hover:border-[var(--primary)] transition-colors"
+                <div key={inc.id} data-testid={`incident-row-${inc.id}`} className="bg-panel border border-line rounded-[10px] p-3.5 cursor-pointer hover:border-[var(--primary)] transition-colors"
                   onClick={() => window.location.href = `/hse/${inc.id}`}>
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">

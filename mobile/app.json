@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.artech.fleetops",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera needed for pre-trip inspection photos and QR code scanning.",
-        "NSLocationWhenInUseUsageDescription": "Location needed for trip tracking and boarding verification."
+        "NSLocationWhenInUseUsageDescription": "FleetOps needs your location for navigation.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FleetOps needs your location during active journeys."
       }
     },
     "android": {
@@ -27,7 +28,7 @@
         "backgroundColor": "#f6f4ee"
       },
       "package": "com.artech.fleetops",
-      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION"]
+      "permissions": ["CAMERA", "android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"]
     },
     "plugins": [
       "expo-router",

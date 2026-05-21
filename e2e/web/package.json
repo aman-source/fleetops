@@ -1,0 +1,21 @@
+{
+  "name": "fleetops-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:journeys": "playwright test --project=journeys",
+    "test:safety": "playwright test --project=safety",
+    "test:tier3": "playwright test --project=tier3",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
+    "mqtt": "^5.10.3",
+    "pg": "^8.13.1",
+    "typescript": "^5.7.2",
+    "ws": "^8.18.0"
+  }
+}

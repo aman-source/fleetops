@@ -1,0 +1,75 @@
+appId: com.artech.fleetops
+---
+# Mobile.4 driver-in-trip-sos.yaml
+# Persona: Driver Ali (in active journey)
+# Goal: SOS panic button — online and offline variants
+
+# Assumes active journey already running
+
+# In-trip screen
+- assertVisible:
+    id: "in-trip-screen"
+
+# Map should be visible
+- assertVisible:
+    id: "in-trip-map"
+
+# ── Online SOS ────────────────────────────────────────────────────────────────
+
+# Long-press SOS button for 3 seconds
+- longPressOn:
+    id: "in-trip-sos-button"
+    duration: 3000
+
+# Assert haptic feedback fired (visual confirmation)
+- assertVisible:
+    id: "sos-confirmation-overlay"
+
+# Assert SOS sent toast appears with timestamp
+- assertVisible:
+    id: "sos-sent-toast"
+- assertVisible:
+    text: "SOS sent"
+
+# Assert timestamp visible in toast
+- assertVisible:
+    id: "sos-sent-timestamp"
+
+# Backend verification — the spec test (1.4) verifies DB via API
+# Maestro asserts the UI state; DB assertion done in Playwright spec
+
+# ── Offline SOS variant ───────────────────────────────────────────────────────
+
+# Enable airplane mode
+- toggleAirplaneMode: true
+
+# Long-press SOS again
+- longPressOn:
+    id: "in-trip-sos-button"
+    duration: 3000
+
+# Assert SOS still fires even offline
+- assertVisible:
+    id: "sos-confirmation-overlay"
+
+# Assert offline indicator visible
+- assertVisible:
+    id: "sos-offline-indicator"
+
+# Assert queued flag shown
+- assertVisible:
+    text: "SOS queued"
+
+# Restore network
+- toggleAirplaneMode: false
+
+# Wait for sync
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Assert queued SOS was sent (offline indicator gone)
+- assertNotVisible:
+    id: "sos-offline-indicator"
+
+- assertVisible:
+    id: "sos-sent-toast"

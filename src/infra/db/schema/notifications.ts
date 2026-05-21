@@ -20,6 +20,16 @@ export const notifications = pgTable('notifications', {
   index('idx_notifications_user').on(table.userId, table.read, table.createdAt),
 ]);
 
+export const notificationDeliveries = pgTable('notification_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notificationId: uuid('notification_id').references(() => notifications.id).notNull(),
+  channel: text('channel').notNull(),
+  providerId: text('provider_id'),
+  status: text('status').default('pending').notNull(), // 'pending' | 'sent' | 'failed'
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  error: text('error'),
+});
+
 export const notificationPreferences = pgTable('notification_preferences', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id).notNull(),

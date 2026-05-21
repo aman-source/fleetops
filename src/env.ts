@@ -33,6 +33,35 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+
+  // Email (SMTP) — optional, feature disabled if missing
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default('FleetOps <noreply@fleetops.local>'),
+
+  // SMS — Twilio or none
+  SMS_PROVIDER: z.enum(['twilio', 'none']).default('none'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM: z.string().optional(),
+
+  // WhatsApp
+  WHATSAPP_PROVIDER: z.enum(['twilio', 'none']).default('none'),
+
+  // Push — Expo
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+
+  // Monitoring
+  METRICS_USER: z.string().default('metrics'),
+  METRICS_PASS: z.string().default('fleetops-metrics'),
+
+  // MFA
+  MFA_ISSUER: z.string().default('FleetOps'),
+
+  // Mapbox (server-side: map matching, route optimization)
+  MAPBOX_TOKEN: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

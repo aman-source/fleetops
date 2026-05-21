@@ -3,6 +3,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js';
 import { authorize } from '../../shared/middleware/authorize.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess } from '../../shared/response.js';
+import { exportCsv } from '../../shared/csv.js';
 import { incidentQuerySchema, completeStepSchema, closeIncidentSchema, driverScoreQuerySchema } from './hse.schema.js';
 import * as service from './hse.service.js';
 
@@ -12,6 +13,15 @@ export async function hseRoutes(app: FastifyInstance) {
 
   // GET /incidents
   app.get('/incidents', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    if (q.format === 'csv') {
+      const query = incidentQuerySchema.parse({ ...q, limit: 50000 });
+      const result = await service.listIncidents(request.tenantId, query);
+      return exportCsv(reply, ['Incident No', 'Type', 'Severity', 'Status', 'Vehicle', 'Driver', 'Reported At'],
+        result.items as Record<string, unknown>[],
+        'incidents.csv',
+        { 'Incident No': 'incidentNo', 'Type': 'incidentType', 'Severity': 'severity', 'Status': 'status', 'Vehicle': 'vehicleId', 'Driver': 'driverId', 'Reported At': 'reportedAt' });
+    }
     const query = incidentQuerySchema.parse(request.query);
     const result = await service.listIncidents(request.tenantId, query);
     return sendSuccess(reply, result.items, 200, result.meta);
@@ -25,10 +35,10 @@ export async function hseRoutes(app: FastifyInstance) {
     return sendSuccess(reply, { incident, steps });
   });
 
-  // POST /incidents/:id/steps/:n/complete
-  app.post('/incidents/:id/steps/:n/complete', { preHandler: [authorize('hse:update')] }, async (request, reply) => {
-    const { id, n } = request.params as { id: string; n: string };
-    const result = await service.completeStep(request.tenantId, id, parseInt(n, 10), request.user.sub);
+  // POST /incidents/:id/steps/:stepId/complete — stepId can be UUID or step number
+  app.post('/incidents/:id/steps/:stepId/complete', { preHandler: [authorize('hse:update')] }, async (request, reply) => {
+    const { id, stepId } = request.params as { id: string; stepId: string };
+    const result = await service.completeStep(request.tenantId, id, stepId, request.user.sub);
     return sendSuccess(reply, result);
   });
 
@@ -45,6 +55,13 @@ export async function hseRoutes(app: FastifyInstance) {
     const { closureReport } = closeIncidentSchema.parse(request.body);
     const incident = await service.closeIncident(request.tenantId, id, request.user.sub, closureReport);
     return sendSuccess(reply, incident);
+  });
+
+  // POST /incidents/:id/release-vehicle — release HSE hold
+  app.post('/incidents/:id/release-vehicle', { preHandler: [authorize('hse:update')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const result = await service.releaseVehicle(request.tenantId, id);
+    return sendSuccess(reply, result);
   });
 
   // GET /driver-scores

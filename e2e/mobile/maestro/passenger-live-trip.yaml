@@ -1,0 +1,55 @@
+appId: com.artech.fleetops
+---
+# Mobile.6 passenger-live-trip.yaml
+# Persona: Passenger Amal (journey 1.5 must be active)
+# Goal: Live trip tracking — map, ETA, call driver, share ETA
+
+# Assumes Amal already logged in and has active trip from spec 1.5
+
+# Navigate to My Trips
+- tapOn:
+    id: "tab-my-trips"
+
+# Tap on active trip
+- tapOn:
+    id: "passenger-active-trip-card"
+
+# Assert live trip screen
+- assertVisible:
+    id: "passenger-live-trip-screen"
+
+# Assert map shows vehicle marker
+- assertVisible:
+    id: "passenger-mytrip-vehicle-marker"
+
+# Assert ETA is displayed
+- assertVisible:
+    id: "passenger-mytrip-eta"
+- assertNotVisible:
+    text: "--:--"
+
+# Assert ETA updates (wait 3s, check value changed — best effort assertion)
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: "passenger-mytrip-eta"
+
+# Tap "Call driver" — assert telephony intent fires
+- tapOn:
+    id: "passenger-call-driver-button"
+
+# Assert native phone dialer or call screen opens
+- assertVisible:
+    id: "call-confirmation-screen"
+
+# Dismiss call
+- tapOn:
+    id: "call-dismiss-button"
+
+# Tap "Share ETA" — assert native share sheet opens
+- tapOn:
+    id: "passenger-share-eta-button"
+
+# Assert share sheet appeared
+- assertVisible:
+    id: "native-share-sheet"

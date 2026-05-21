@@ -5,6 +5,9 @@ import { authorize } from '../../shared/middleware/authorize.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess, sendCreated } from '../../shared/response.js';
 import * as service from './admin.service.js';
+import * as checklistService from './checklists.service.js';
+import { listExecutions, resumeApproval } from '../workflows/executor.js';
+import { runRetentionPolicies } from './retention.service.js';
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -61,5 +64,77 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const version = await service.publishWorkflow(request.tenantId, id, request.user.sub);
     return sendSuccess(reply, version);
+  });
+
+  // GET /admin/workflow-executions
+  app.get('/admin/workflow-executions', { preHandler: [authorize('workflow:read')] }, async (request, reply) => {
+    const query = z.object({
+      entityType: z.string().optional(),
+      entityId: z.string().uuid().optional(),
+    }).parse(request.query);
+    const executions = await listExecutions(request.tenantId, query.entityType, query.entityId);
+    return sendSuccess(reply, executions);
+  });
+
+  // POST /admin/workflow-executions/:id/approve
+  app.post('/admin/workflow-executions/:id/approve', { preHandler: [authorize('journey:approve')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({ approved: z.boolean(), reason: z.string().optional() }).parse(request.body);
+    await resumeApproval(id, request.user.sub, body.approved, body.reason);
+    return sendSuccess(reply, { ok: true });
+  });
+
+  // ── Checklist Templates ──
+
+  // GET /admin/checklist-templates
+  app.get('/admin/checklist-templates', { preHandler: [authorize('admin:read')] }, async (request, reply) => {
+    const templates = await checklistService.listTemplates(request.tenantId);
+    return sendSuccess(reply, templates);
+  });
+
+  // GET /admin/checklist-templates/:id
+  app.get('/admin/checklist-templates/:id', { preHandler: [authorize('admin:read')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const template = await checklistService.getTemplate(request.tenantId, id);
+    return sendSuccess(reply, template);
+  });
+
+  // POST /admin/checklist-templates
+  app.post('/admin/checklist-templates', { preHandler: [authorize('admin:write')] }, async (request, reply) => {
+    const body = z.object({ name: z.string().min(1), projectId: z.string().uuid().optional() }).parse(request.body);
+    const template = await checklistService.createTemplate(request.tenantId, request.user.sub, body);
+    return sendCreated(reply, template);
+  });
+
+  // PUT /admin/checklist-templates/:id
+  app.put('/admin/checklist-templates/:id', { preHandler: [authorize('admin:write')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      items: z.array(z.object({
+        stepNumber: z.number().int().positive(),
+        category: z.string().min(1),
+        label: z.string().min(1),
+        description: z.string().optional(),
+        requiresPhoto: z.boolean().optional(),
+        isCritical: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+      })).optional(),
+    }).parse(request.body);
+    const template = await checklistService.updateTemplate(request.tenantId, id, body);
+    return sendSuccess(reply, template);
+  });
+
+  // POST /admin/checklist-templates/:id/publish
+  app.post('/admin/checklist-templates/:id/publish', { preHandler: [authorize('admin:write')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const template = await checklistService.publishTemplate(request.tenantId, id);
+    return sendSuccess(reply, template);
+  });
+
+  // POST /admin/retention/run — manually trigger retention (superadmin only)
+  app.post('/admin/retention/run', { preHandler: [authorize('*')] }, async (request, reply) => {
+    const results = await runRetentionPolicies(request.server.log);
+    return sendSuccess(reply, { results });
   });
 }
