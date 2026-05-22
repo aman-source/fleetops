@@ -17,8 +17,13 @@ minio_data/
 # Coverage
 coverage/
 
-# E2E screenshots
+# E2E artifacts
 e2e/web/screenshots/
+e2e/web/test-results/
+test-results/
+playwright-report/
+*.png
+*.webm
 
 # OS
 *.swp
