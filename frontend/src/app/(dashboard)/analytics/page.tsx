@@ -98,9 +98,9 @@ export default function AnalyticsPage() {
               <KPI label="FLEET UTILIZATION" value={`${kpis.utilizationPct}`} unit="%" delta="+4.2 vs target" deltaColor="var(--go)" spark={[60,62,65,68,66,70,kpis.utilizationPct]} color="#4a90ff" />
               <KPI label="JOURNEY ON-TIME" value={`${kpis.onTimePct}`} unit="%" delta="+1.8 MoM" deltaColor="var(--go)" spark={[88,90,89,91,93,93,kpis.onTimePct]} color="#1ec991" />
               <KPI label="NO-GO RATE" value={`${kpis.noGoRate}`} unit="%" delta="-0.8 MoM" deltaColor="var(--go)" spark={[7,8,7,6.5,6,5.6,kpis.noGoRate]} color="#f5a524" />
-              <KPI label="INCIDENTS &middot; 30D" value={`${kpis.activeIncidents}`} unit="" delta={`TRIR ${(kpis.activeIncidents * 0.047).toFixed(2)}`} deltaColor="var(--ink-2)" spark={[1,0,1,0,1,1,kpis.activeIncidents]} color="#ef4747" />
+              <KPI label="INCIDENTS · 30D" value={`${kpis.activeIncidents}`} unit="" delta={`TRIR ${(kpis.activeIncidents * 0.047).toFixed(2)}`} deltaColor="var(--ink-2)" spark={[1,0,1,0,1,1,kpis.activeIncidents]} color="#ef4747" />
               <KPI label="DRIVER SCORE AVG" value={kpis.avgDriverScore ? String(kpis.avgDriverScore) : '88.4'} unit="/100" delta="+0.6" deltaColor="var(--go)" spark={[85,86,86,87,87,88,kpis.avgDriverScore ?? 88.4]} color="#a78bfa" />
-              <KPI label="COST &middot; OMR / KM" value="0.146" unit="" delta="-2.1% vs Apr" deltaColor="var(--go)" spark={[0.16,0.158,0.155,0.151,0.149,0.148,0.146]} color="#38d4d4" />
+              <KPI label="COST · OMR / KM" value="0.146" unit="" delta="-2.1% vs Apr" deltaColor="var(--go)" spark={[0.16,0.158,0.155,0.151,0.149,0.148,0.146]} color="#38d4d4" />
             </div>
 
             {/* Mid row: Fleet readiness + Journey chart + Risks */}

@@ -56,9 +56,19 @@ export async function loginAs(page: Page, role: Role): Promise<void> {
     localStorage.setItem('refreshToken', rt);
   }, { at: accessToken, rt: refreshToken });
 
-  // Navigate to dashboard — auth store will pick up tokens from localStorage
-  await page.goto('/map');
-  await page.waitForURL(/\/map/, { timeout: 15_000 });
+  // Navigate to role's home page — avoids /map API calls that some roles can't access
+  const roleHome: Record<string, string> = {
+    passenger: '/passenger',
+    hse: '/hse',
+    maint: '/maintenance',
+    driver: '/journeys',
+    jm: '/journeys',
+    admin: '/map',
+  };
+  const dest = roleHome[role] ?? '/map';
+  await page.goto(dest);
+  await page.waitForURL(new RegExp(dest.replace(/\//g, '\\/')), { timeout: 15_000 });
+  await page.waitForLoadState('networkidle').catch(() => {});
 }
 
 export async function screenshot(page: Page, spec: string, step: string): Promise<void> {

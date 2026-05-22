@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
 import { Combobox } from '@/components/ui/combobox';
 import { GeocoderInput } from '@/components/ui/geocoder-input';
+import { useAuth } from '@/stores/auth';
 
 interface Journey { id: string; journeyNo: string; vehicleId: string; driverId: string; purpose: string | null; plannedDeparture: string; plannedArrival: string; riskLevel: string | null; status: string; }
 interface Vehicle { id: string; plateNo: string; fleetNo: string | null; make: string; model: string; type: string; seatCount: number; status: string; }
@@ -15,9 +16,16 @@ const STATUS_COLORS: Record<string, string> = { draft: 'bg-neutral-soft text-neu
 const RISK_COLORS: Record<string, string> = { L: 'text-go', M: 'text-cond', H: 'text-nogo' };
 
 export default function JourneysPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!authLoading && user && user.role === 'passenger') {
+      window.location.replace('/passenger');
+    }
+  }, [authLoading, user]);
 
   const { data: journeys, isLoading } = useQuery({
     queryKey: ['journeys', statusFilter],

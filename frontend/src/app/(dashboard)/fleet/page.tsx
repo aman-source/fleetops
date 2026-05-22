@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
+import { useAuth } from '@/stores/auth';
 
 interface Vehicle {
   id: string;
@@ -31,8 +32,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FleetPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (!authLoading && user && user.role === 'passenger') {
+      window.location.replace('/passenger');
+    }
+  }, [authLoading, user]);
 
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ['vehicles', statusFilter, search],

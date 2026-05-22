@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
@@ -17,13 +16,12 @@ interface Workflow {
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     if (!authLoading && user && user.role !== 'admin') {
-      router.push('/map');
+      window.location.replace('/map');
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user]);
 
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['workflows'],

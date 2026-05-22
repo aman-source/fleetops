@@ -36,7 +36,7 @@ test.describe('08 — Analytics & Fleet', () => {
     await page.goto('/analytics');
     await page.waitForTimeout(3000);
 
-    const tile = page.getByTestId('analytics-kpi-incidents--30d');
+    const tile = page.getByTestId('analytics-kpi-incidents-30d');
     await expect(tile).toBeVisible({ timeout: 10_000 });
     await screenshot(page, '08-analytics', '8.4-incidents-tile');
   });
@@ -87,7 +87,7 @@ test.describe('08 — Analytics & Fleet', () => {
   });
 
   test('8.10 fleet vehicle rows visible with status badges', async ({ page }) => {
-    await loginAs(page, 'jm');
+    await loginAs(page, 'admin'); // admin org has seeded vehicles; jm (Marmul Ops) has none
     await page.goto('/fleet');
     await page.waitForTimeout(2000);
 
@@ -116,7 +116,7 @@ test.describe('08 — Analytics & Fleet', () => {
   });
 
   test('8.12 click vehicle row — /fleet/[id] loads with tabs', async ({ page }) => {
-    await loginAs(page, 'jm');
+    await loginAs(page, 'admin'); // admin org has seeded vehicles
     await page.goto('/fleet');
     await page.waitForTimeout(2000);
 
@@ -132,7 +132,7 @@ test.describe('08 — Analytics & Fleet', () => {
   });
 
   test('8.13 vehicle detail tabs — documents and IVMS accessible', async ({ page }) => {
-    await loginAs(page, 'jm');
+    await loginAs(page, 'admin'); // admin org has seeded vehicles
     await page.goto('/fleet');
     await page.waitForTimeout(2000);
 
