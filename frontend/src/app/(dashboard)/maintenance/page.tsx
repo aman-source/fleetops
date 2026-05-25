@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Glyph } from '@/components/ui/glyph';
@@ -21,6 +22,7 @@ const BAYS = ['1', '2', '3', '4', '5', '6'];
 type ViewMode = 'board' | 'kanban' | 'table';
 
 export default function MaintenancePage() {
+  const router = useRouter();
   const [view, setView] = useState<ViewMode>('board');
 
   const { data: workOrders, isLoading } = useQuery({
@@ -79,7 +81,7 @@ export default function MaintenancePage() {
                 const progress = stageIdx >= 0 ? ((stageIdx + 1) / stages.length) * 100 : 20;
                 return (
                   <div key={bayNum} data-testid={`wo-card-${wo.id}`} className="bg-panel border border-line rounded-[12px] p-4 cursor-pointer hover:border-[var(--primary)] transition-colors min-h-[180px] flex flex-col"
-                    onClick={() => window.location.href = `/maintenance/${wo.id}`}>
+                    onClick={() => router.push(`/maintenance/${wo.id}`)}>
                     {/* Bay label */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[11px] font-mono text-ink-3 uppercase">Bay {bayNum}</span>
@@ -131,7 +133,7 @@ export default function MaintenancePage() {
               )}
               {inboundWOs.map(wo => (
                 <div key={wo.id} data-testid={`wo-inbound-${wo.id}`} className="bg-panel border border-line rounded-[8px] p-3 cursor-pointer hover:border-[var(--primary)] transition-colors"
-                  onClick={() => window.location.href = `/maintenance/${wo.id}`}>
+                  onClick={() => router.push(`/maintenance/${wo.id}`)}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{wo.woNumber}</span>
                     <span className={`w-2 h-2 rounded-full ${PRIORITY_DOT[wo.priority] ?? 'bg-ink-3'}`} title={wo.priority} />
@@ -171,7 +173,7 @@ export default function MaintenancePage() {
                     <div className="text-[11px] text-ink-3 text-center py-4 border border-dashed border-line rounded-[8px]">Empty</div>
                   )}
                   {items.map(wo => (
-                    <div key={wo.id} data-testid={`wo-kanban-${wo.id}`} onClick={() => window.location.href = `/maintenance/${wo.id}`}
+                    <div key={wo.id} data-testid={`wo-kanban-${wo.id}`} onClick={() => router.push(`/maintenance/${wo.id}`)}
                       className="bg-panel border border-line rounded-[8px] p-3 cursor-pointer hover:border-[var(--primary)] transition-colors">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{wo.woNumber}</span>
@@ -211,7 +213,7 @@ export default function MaintenancePage() {
               <tbody className="divide-y divide-line-soft">
                 {allWOs.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">No work orders</td></tr>}
                 {allWOs.map(wo => (
-                  <tr key={wo.id} data-testid={`wo-row-${wo.id}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/maintenance/${wo.id}`}>
+                  <tr key={wo.id} data-testid={`wo-row-${wo.id}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => router.push(`/maintenance/${wo.id}`)}>
                     <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{wo.woNumber}</td>
                     <td className="px-3 py-2.5 text-ink-0">{wo.title}</td>
                     <td className="px-3 py-2.5 text-ink-1 capitalize">{wo.issueType.replace(/_/g, ' ')}</td>

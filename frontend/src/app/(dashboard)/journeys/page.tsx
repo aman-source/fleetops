@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
@@ -16,6 +17,7 @@ const STATUS_COLORS: Record<string, string> = { draft: 'bg-neutral-soft text-neu
 const RISK_COLORS: Record<string, string> = { L: 'text-go', M: 'text-cond', H: 'text-nogo' };
 
 export default function JourneysPage() {
+  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -69,7 +71,7 @@ export default function JourneysPage() {
               {isLoading && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>}
               {!isLoading && journeys?.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-ink-3">No journeys found</td></tr>}
               {journeys?.map((j) => (
-                <tr key={j.id} data-testid={`journey-row-${j.id}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/journeys/${j.id}`}>
+                <tr key={j.id} data-testid={`journey-row-${j.id}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => router.push(`/journeys/${j.id}`)}>
                   <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{j.journeyNo}</td>
                   <td className="px-3 py-2.5 text-ink-0">{j.purpose || '\u2014'}</td>
                   <td className="px-3 py-2.5 text-ink-1 font-mono text-[11px]">{new Date(j.plannedDeparture).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>

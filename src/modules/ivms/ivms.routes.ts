@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, and, lt, gte, lte, desc, inArray } from 'drizzle-orm';
+import { vehicles } from '../../infra/db/schema/vehicles.js';
 import { authenticate } from '../../shared/middleware/authenticate.js';
 import { tenantScope } from '../../shared/middleware/tenant.js';
 import { sendSuccess } from '../../shared/response.js';
@@ -31,11 +32,13 @@ export async function ivmsRoutes(app: FastifyInstance) {
       states = await getAllLiveStates();
     }
 
-    // Annotate stale status
-    const annotated = states.map((s) => ({
-      ...s,
-      online: s ? !isStale(s.lastSeen) : false,
-    }));
+    // Filter by tenant + annotate stale status
+    const annotated = states
+      .filter(s => !s.orgId || s.orgId === request.tenantId)
+      .map((s) => ({
+        ...s,
+        online: s ? !isStale(s.lastSeen) : false,
+      }));
 
     return sendSuccess(reply, annotated);
   });
@@ -47,6 +50,10 @@ export async function ivmsRoutes(app: FastifyInstance) {
 
     if (!state) {
       return sendSuccess(reply, { vehicleId, online: false, message: 'No live data' });
+    }
+
+    if (state.orgId && state.orgId !== request.tenantId) {
+      return reply.status(404).send({ error: 'Vehicle not found', code: 'NOT_FOUND' });
     }
 
     return sendSuccess(reply, { ...state, online: !isStale(state.lastSeen) });
@@ -97,6 +104,15 @@ export async function ivmsRoutes(app: FastifyInstance) {
     const { vehicleId } = request.params as { vehicleId: string };
     const query = telemetryQuerySchema.parse(request.query);
 
+    // Ensure vehicle belongs to tenant
+    const [vehicle] = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(eq(vehicles.id, vehicleId), eq(vehicles.orgId, request.tenantId)))
+      .limit(1);
+    if (!vehicle) {
+      return reply.status(404).send({ error: 'Vehicle not found', code: 'NOT_FOUND' });
+    }
+
     const rows = await db
       .select()
       .from(telemetryLogs)
@@ -116,7 +132,9 @@ export async function ivmsRoutes(app: FastifyInstance) {
     const states = await getAllLiveStates();
     if (!states.length) return sendSuccess(reply, []);
 
-    const vehicleIds = states.filter(s => !isStale(s.lastSeen)).map(s => s.vehicleId);
+    const vehicleIds = states
+      .filter(s => !isStale(s.lastSeen) && (!s.orgId || s.orgId === request.tenantId))
+      .map(s => s.vehicleId);
     if (!vehicleIds.length) return sendSuccess(reply, []);
 
     const since = new Date(Date.now() - 30 * 60 * 1000);

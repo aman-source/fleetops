@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Topbar } from '@/components/layout/topbar';
@@ -32,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function FleetPage() {
+  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -103,7 +105,7 @@ export default function FleetPage() {
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-ink-3">Loading...</td></tr>
               )}
               {vehicles?.map((v) => (
-                <tr key={v.id} data-testid={`vehicle-row-${v.plateNo.replace(/\s/g, '-')}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/fleet/${v.id}`}>
+                <tr key={v.id} data-testid={`vehicle-row-${v.plateNo.replace(/\s/g, '-')}`} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => router.push(`/fleet/${v.id}`)}>
                   <td className="px-3 py-2 text-ink-0 font-medium font-mono">{v.plateNo}</td>
                   <td className="px-3 py-2 text-ink-2">{v.fleetNo ?? '—'}</td>
                   <td className="px-3 py-2 text-ink-1">{v.make} {v.model}</td>

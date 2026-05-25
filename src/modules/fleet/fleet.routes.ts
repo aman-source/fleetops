@@ -151,6 +151,8 @@ export async function fleetRoutes(app: FastifyInstance) {
   // GET /vehicles/:id/checklist-template — active published checklist for this vehicle's project/org
   app.get('/vehicles/:id/checklist-template', async (request, reply) => {
     const { id } = request.params as { id: string };
+    // Verify vehicle belongs to caller's tenant (throws NotFoundError if not)
+    await service.getVehicle(request.tenantId, id);
     const template = await getVehicleChecklistTemplate(id);
     return sendSuccess(reply, template);
   });

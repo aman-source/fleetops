@@ -68,7 +68,7 @@ export default function JourneyComposerPage({ params }: { params: Promise<{ id: 
             <button
               data-testid="gates-submit-button"
               disabled={!canSubmit}
-              onClick={async () => { try { await api.post(`/journeys/${id}/submit`); window.location.reload(); } catch {} }}
+              onClick={async () => { try { await api.post(`/journeys/${id}/submit`); window.location.reload(); } catch (err: unknown) { const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Submission failed'; alert(msg); } }}
               className={`h-7 px-3 flex items-center gap-1.5 rounded-[6px] text-[12px] font-medium transition-colors ${
                 canSubmit
                   ? 'bg-[var(--primary)] border border-[var(--primary)] text-white hover:brightness-110'

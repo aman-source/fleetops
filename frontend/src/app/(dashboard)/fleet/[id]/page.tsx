@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Glyph } from '@/components/ui/glyph';
@@ -19,6 +20,7 @@ interface Vehicle {
 const TABS = ['Overview', 'Documents', 'Maintenance', 'Tires', 'Parts', 'Journeys', 'Events', 'Devices', 'Audit'] as const;
 
 export default function VehicleProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const [tab, setTab] = useState<string>('Overview');
 
@@ -296,7 +298,7 @@ function MaintenanceTab({ vehicleId }: { vehicleId: string }) {
         <tbody className="divide-y divide-line-soft">
           {(!data || data.length === 0) && <tr><td colSpan={5} className="px-3 py-6 text-center text-ink-3">No work orders</td></tr>}
           {data?.map((w) => (
-            <tr key={w.id as string} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/maintenance/${w.id}`}>
+            <tr key={w.id as string} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => router.push(`/maintenance/${w.id}`)}>
               <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{w.woNumber as string}</td>
               <td className="px-3 py-2.5 text-ink-0">{w.title as string}</td>
               <td className="px-3 py-2.5 text-ink-1 capitalize">{(w.issueType as string).replace(/_/g, ' ')}</td>
@@ -412,7 +414,7 @@ function JourneysTab({ vehicleId }: { vehicleId: string }) {
         <tbody className="divide-y divide-line-soft">
           {(!data || data.length === 0) && <tr><td colSpan={5} className="px-3 py-6 text-center text-ink-3">No journeys</td></tr>}
           {data?.map((j) => (
-            <tr key={j.id as string} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => window.location.href = `/journeys/${j.id}`}>
+            <tr key={j.id as string} className="hover:bg-raised transition-colors cursor-pointer" onClick={() => router.push(`/journeys/${j.id}`)}>
               <td className="px-3 py-2.5 text-[var(--primary)] font-mono font-medium">{j.journeyNo as string}</td>
               <td className="px-3 py-2.5 text-ink-0">{(j.purpose as string) ?? '\u2014'}</td>
               <td className="px-3 py-2.5 text-ink-1 text-[11px]">{j.origin as string ?? ''} → {j.destination as string ?? ''}</td>

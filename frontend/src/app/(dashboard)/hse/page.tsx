@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { Glyph, Spark } from '@/components/ui/glyph';
@@ -39,6 +40,7 @@ interface Event {
 const PLAYBOOK_STEPS = ['acknowledge', 'assess', 'contain', 'notify', 'investigate', 'close'] as const;
 
 export default function HSEConsolePage() {
+  const router = useRouter();
   const { data: incidents } = useQuery({
     queryKey: ['incidents-all'],
     queryFn: async () => unwrap<Incident[]>(await api.get('/incidents?limit=50')),
@@ -124,7 +126,7 @@ export default function HSEConsolePage() {
               const elapsed = getElapsed(inc.startedAt);
               return (
                 <div key={inc.id} data-testid={`incident-row-${inc.id}`} className="bg-panel border border-line rounded-[10px] p-3.5 cursor-pointer hover:border-[var(--primary)] transition-colors"
-                  onClick={() => window.location.href = `/hse/${inc.id}`}>
+                  onClick={() => router.push(`/hse/${inc.id}`)}>
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center justify-center w-6 h-6 rounded-[4px] text-[11px] font-bold font-mono text-white ${inc.tier >= 3 ? 'bg-[var(--nogo)]' : inc.tier === 2 ? 'bg-[var(--cond)]' : 'bg-[var(--info)]'}`}>
@@ -204,7 +206,7 @@ export default function HSEConsolePage() {
             <div className="bg-panel border border-line rounded-[10px] overflow-hidden flex-1">
               <div className="px-3.5 py-2.5 border-b border-line flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-ink-0">Recent Events</span>
-                <button className="text-[11px] text-[var(--primary)] hover:underline" onClick={() => window.location.href = '/events'}>View all</button>
+                <button className="text-[11px] text-[var(--primary)] hover:underline" onClick={() => router.push('/events')}>View all</button>
               </div>
               <div className="divide-y divide-line-soft">
                 {(!events || events.length === 0) && <div className="px-3 py-4 text-center text-ink-3 text-[11px]">No events</div>}

@@ -58,7 +58,20 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /auth/mfa/verify — complete login when MFA is required
-  app.post('/auth/mfa/verify', async (request, reply) => {
+  app.post('/auth/mfa/verify', {
+    config: {
+      rateLimit: {
+        max: process.env.NODE_ENV === 'production' ? 5 : 10000,
+        timeWindow: '1 minute',
+        keyGenerator: (request) => request.ip,
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          error: 'Too many attempts. Try again in 1 minute.',
+          code: 'RATE_LIMITED',
+        }),
+      },
+    },
+  }, async (request, reply) => {
     const body = mfaVerifySchema.parse(request.body);
     const result = await mfaVerifyLogin(body.mfaToken, body.totp, request.ip, request.headers['user-agent']);
     return sendSuccess(reply, { user: result.user, tokens: result.tokens });

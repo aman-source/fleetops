@@ -16,6 +16,9 @@ const STALE_THRESHOLD_SECONDS = 60;
 export interface VehicleLiveState {
   vehicleId: string;
   deviceId: string;
+  orgId: string;
+  plateNo?: string;
+  vehicleType?: string;
   driverId?: string;
   journeyId?: string;
   lat: number;
@@ -42,6 +45,9 @@ export async function updateLiveState(state: VehicleLiveState): Promise<void> {
   pipeline.hset(hashKey, {
     vehicleId: state.vehicleId,
     deviceId: state.deviceId,
+    orgId: state.orgId,
+    plateNo: state.plateNo ?? '',
+    vehicleType: state.vehicleType ?? '',
     driverId: state.driverId ?? '',
     journeyId: state.journeyId ?? '',
     lat: String(state.lat),
@@ -70,6 +76,9 @@ export async function getLiveState(vehicleId: string): Promise<VehicleLiveState 
   return {
     vehicleId: data.vehicleId,
     deviceId: data.deviceId,
+    orgId: data.orgId ?? '',
+    plateNo: data.plateNo || undefined,
+    vehicleType: data.vehicleType || undefined,
     driverId: data.driverId || undefined,
     journeyId: data.journeyId || undefined,
     lat: parseFloat(data.lat),
@@ -109,6 +118,9 @@ export async function getAllLiveStates(): Promise<VehicleLiveState[]> {
             states.push({
               vehicleId: d.vehicleId,
               deviceId: d.deviceId,
+              orgId: d.orgId ?? '',
+              plateNo: d.plateNo || undefined,
+              vehicleType: d.vehicleType || undefined,
               driverId: d.driverId || undefined,
               journeyId: d.journeyId || undefined,
               lat: parseFloat(d.lat),

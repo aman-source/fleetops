@@ -31,7 +31,7 @@ export async function reportRoutes(app: FastifyInstance) {
   app.addHook('preHandler', tenantScope);
 
   // POST /reports — request on-demand PDF report
-  app.post('/reports', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
+  app.post('/reports', { preHandler: [authorize('analytics:write')] }, async (request, reply) => {
     const input = requestReportSchema.parse(request.body);
     const report = await service.requestReport(request.tenantId, request.user.sub, input.reportType, input.params ?? {});
     return sendCreated(reply, report);
@@ -61,7 +61,7 @@ export async function reportRoutes(app: FastifyInstance) {
   // ─── Scheduled Reports ────────────────────────────────────────────────────
 
   // POST /reports/scheduled
-  app.post('/reports/scheduled', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
+  app.post('/reports/scheduled', { preHandler: [authorize('analytics:write')] }, async (request, reply) => {
     const input = createScheduledSchema.parse(request.body);
     const sr = await service.createScheduledReport(request.tenantId, request.user.sub, input);
     return sendCreated(reply, sr);
@@ -74,7 +74,7 @@ export async function reportRoutes(app: FastifyInstance) {
   });
 
   // PATCH /reports/scheduled/:id
-  app.patch('/reports/scheduled/:id', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
+  app.patch('/reports/scheduled/:id', { preHandler: [authorize('analytics:write')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateScheduledSchema.parse(request.body);
     const sr = await service.updateScheduledReport(request.tenantId, id, input);
@@ -82,7 +82,7 @@ export async function reportRoutes(app: FastifyInstance) {
   });
 
   // DELETE /reports/scheduled/:id
-  app.delete('/reports/scheduled/:id', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
+  app.delete('/reports/scheduled/:id', { preHandler: [authorize('analytics:write')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await service.deleteScheduledReport(request.tenantId, id);
     return sendNoContent(reply);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
@@ -38,11 +39,11 @@ interface ReadinessItem { status: string; count: number; }
 const SEV_DOT: Record<string, string> = { go: 'bg-[var(--go)]', cond: 'bg-[var(--cond)]', nogo: 'bg-[var(--nogo)]', info: 'bg-[var(--primary)]' };
 
 const LEGEND = [
-  { color: '#1ec991', label: 'GO / Online' },
-  { color: '#f5a524', label: 'Conditional' },
-  { color: '#ef4747', label: 'No-Go' },
-  { color: '#4a90ff', label: 'In Maintenance' },
-  { color: '#8a8270', label: 'Offline' },
+  { color: '#22c55e', label: 'GO / Online' },
+  { color: '#f59e0b', label: 'Conditional' },
+  { color: '#ef4444', label: 'No-Go / HSE Hold' },
+  { color: '#3b82f6', label: 'In Maintenance' },
+  { color: '#94a3b8', label: 'Offline / Decom' },
 ];
 
 function sevToKey(sev: string): string {
@@ -69,9 +70,10 @@ function eventDetail(type: string, details: Record<string, unknown> | null, spee
 }
 
 export default function MapPage() {
+  const router = useRouter();
   const [liveVehicles, setLiveVehicles] = useState<VehicleLiveLocal[]>([]);
   const { rightPanelOpen, toggleRightPanel } = useLayout();
-  const [mapTab, setMapTab] = useState('Active journeys');
+  const [mapTab, setMapTab] = useState('All fleet');
   const [showIsochrones, setShowIsochrones] = useState(false);
 
   // Live fleet positions
@@ -195,12 +197,12 @@ export default function MapPage() {
         </div>
         <div className="flex flex-col ml-1">
           <span className="text-[14px] font-semibold text-ink-0">Live fleet map</span>
-          <span className="font-mono text-[10px] text-ink-3">OMAN \u00b7 MARMUL OPS \u00b7 {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
+          <span className="font-mono text-[10px] text-ink-3">{'OMAN · MARMUL OPS · '}{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}</span>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-2 border border-line-soft">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--go)]" />
-          <span className="font-mono text-[10.5px] text-ink-2">LIVE \u00b7 {online || totalFleet} online</span>
+          <span className="font-mono text-[10.5px] text-ink-2">{'LIVE · '}{online || totalFleet}{' online'}</span>
         </div>
         <button className="h-7 w-7 flex items-center justify-center bg-bg-3 border border-line rounded-[6px] text-ink-1 hover:bg-bg-4 transition-colors">
           <Glyph k="bell" size={14} stroke={1.8} />
@@ -246,24 +248,23 @@ export default function MapPage() {
           </div>
 
           <div className="flex-1 relative">
-            <FleetMap vehicles={liveVehicles} routes={routesData ?? []} trails={trailsData ?? []} isochrones={showIsochrones ? (isochroneData ?? []) : []} />
+            <FleetMap
+              vehicles={liveVehicles}
+              routes={routesData ?? []}
+              trails={trailsData ?? []}
+              isochrones={showIsochrones ? (isochroneData ?? []) : []}
+              showRoutes={mapTab === 'Active journeys'}
+            />
             {/* Legend */}
-            <div className="absolute bottom-3 left-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[8px] px-3 py-2 z-[400]">
-              <div className="text-[9px] uppercase tracking-[0.08em] text-ink-3 font-medium mb-1.5">Legend</div>
-              <div className="flex flex-col gap-1">
+            <div className="absolute bottom-3 left-3 z-[400]" style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 12px', boxShadow: '0 2px 12px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.08)' }}>
+              <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>Legend</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {LEGEND.map(l => (
-                  <div key={l.label} className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
-                    <span className="text-[10px] text-ink-2">{l.label}</span>
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: l.color, flexShrink: 0, border: '1.5px solid white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                    <span style={{ fontSize: 10, color: '#475569' }}>{l.label}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-            {/* Scale */}
-            <div className="absolute bottom-3 right-3 bg-panel/90 backdrop-blur-sm border border-line rounded-[6px] px-2.5 py-1.5 z-[400]">
-              <div className="flex items-center gap-2">
-                <div className="w-[40px] h-px bg-ink-3" />
-                <span className="font-mono text-[9px] text-ink-3">50 km</span>
               </div>
             </div>
           </div>
@@ -289,7 +290,8 @@ export default function MapPage() {
               <div className="flex flex-col" style={{ maxHeight: 240, overflow: 'hidden' }}>
                 {events.length === 0 && <div className="px-3 py-4 text-center text-ink-3 text-[11px]">No recent events</div>}
                 {events.map((e, i) => (
-                  <div key={e.id} className="flex gap-2.5 px-3 py-2" style={{ borderBottom: i < events.length - 1 ? '1px solid var(--line-soft)' : 'none' }}>
+                  <div key={e.id} className="flex gap-2.5 px-3 py-2 cursor-pointer hover:bg-raised transition-colors" style={{ borderBottom: i < events.length - 1 ? '1px solid var(--line-soft)' : 'none' }}
+                    onClick={() => router.push('/events')}>
                     <span className={`w-1 self-stretch rounded-sm shrink-0 ${SEV_DOT[sevToKey(e.severity)] || 'bg-ink-3'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
@@ -324,7 +326,7 @@ export default function MapPage() {
 
                   return (
                     <div key={j.id} className="px-3 py-2.5 hover:bg-raised transition-colors cursor-pointer" style={{ borderBottom: i < journeysList.length - 1 ? '1px solid var(--line-soft)' : 'none' }}
-                      onClick={() => window.location.href = `/journeys/${j.id}`}>
+                      onClick={() => router.push(`/journeys/${j.id}`)}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-[11px] text-[var(--primary)] font-medium">{j.journeyNo}</span>

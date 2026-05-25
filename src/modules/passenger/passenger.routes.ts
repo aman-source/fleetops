@@ -45,7 +45,7 @@ export async function passengerRoutes(app: FastifyInstance) {
   });
 
   // PATCH /passenger/requests/:id
-  app.patch('/passenger/requests/:id', async (request, reply) => {
+  app.patch('/passenger/requests/:id', { preHandler: [authorize('passenger:request')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateRequestSchema.parse(request.body);
     const req = await service.updateRequest(request.tenantId, id, request.user.sub, input);
@@ -53,7 +53,7 @@ export async function passengerRoutes(app: FastifyInstance) {
   });
 
   // DELETE /passenger/requests/:id
-  app.delete('/passenger/requests/:id', async (request, reply) => {
+  app.delete('/passenger/requests/:id', { preHandler: [authorize('passenger:request')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await service.cancelRequest(request.tenantId, id, request.user.sub);
     return sendNoContent(reply);
@@ -91,7 +91,7 @@ export async function passengerRoutes(app: FastifyInstance) {
   });
 
   // POST /passenger/boarding/:journeyId
-  app.post('/passenger/boarding/:journeyId', async (request, reply) => {
+  app.post('/passenger/boarding/:journeyId', { preHandler: [authorize('passenger:request')] }, async (request, reply) => {
     const { journeyId } = request.params as { journeyId: string };
     const input = boardingSchema.parse(request.body);
     const event = await service.recordBoarding(request.tenantId, journeyId, input);

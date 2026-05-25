@@ -22,13 +22,13 @@ export async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/fleet-readiness
-  app.get('/analytics/fleet-readiness', async (request, reply) => {
+  app.get('/analytics/fleet-readiness', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
     const data = await service.getFleetReadiness(request.tenantId);
     return sendSuccess(reply, data);
   });
 
   // GET /analytics/journeys
-  app.get('/analytics/journeys', async (request, reply) => {
+  app.get('/analytics/journeys', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
     const query = z.object({
       from: z.string().datetime(),
       to: z.string().datetime(),
@@ -39,13 +39,13 @@ export async function analyticsRoutes(app: FastifyInstance) {
   });
 
   // GET /analytics/sites
-  app.get('/analytics/sites', async (request, reply) => {
+  app.get('/analytics/sites', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
     const data = await service.getSiteBreakdown(request.tenantId);
     return sendSuccess(reply, data);
   });
 
   // GET /analytics/lti
-  app.get('/analytics/lti', async (request, reply) => {
+  app.get('/analytics/lti', { preHandler: [authorize('analytics:read')] }, async (request, reply) => {
     const data = await service.getLtiDays(request.tenantId);
     return sendSuccess(reply, data);
   });

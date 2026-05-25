@@ -30,7 +30,7 @@ const SECTIONS = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, hasPermission, logout } = useAuth();
-  const { sidebarOpen, toggleSidebar } = useLayout();
+  const { sidebarOpen, toggleSidebar, openSearch } = useLayout();
 
   return (
     <aside className={`flex flex-col border-r border-line bg-bg-1 h-screen shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-[220px]' : 'w-[52px]'}`}
@@ -52,11 +52,11 @@ export function Sidebar() {
 
       {/* Search */}
       {sidebarOpen && (
-        <div className="flex items-center gap-1.5 bg-bg-2 border border-line rounded-[6px] px-2 py-1.5 cursor-pointer hover:border-[var(--primary)] transition-colors">
+        <button onClick={openSearch} className="w-full flex items-center gap-1.5 bg-bg-2 border border-line rounded-[6px] px-2 py-1.5 cursor-pointer hover:border-[var(--primary)] transition-colors">
           <Glyph k="search" size={13} stroke={1.8} className="text-ink-3" />
-          <span className="text-[11.5px] text-ink-3 flex-1">Search fleet, journey&#x2026;</span>
+          <span className="text-[11.5px] text-ink-3 flex-1 text-left">Search fleet, journey&#x2026;</span>
           <span className="font-mono text-[10px] px-1 py-px rounded bg-bg-3 text-ink-3">&#x2318;K</span>
-        </div>
+        </button>
       )}
 
       {/* Nav sections */}

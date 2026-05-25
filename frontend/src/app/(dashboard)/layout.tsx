@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/stores/auth';
 import { Sidebar } from '@/components/layout/sidebar';
+import { SearchModal } from '@/components/ui/search-modal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 flex flex-col overflow-hidden">
         {children}
       </main>
+      <SearchModal />
     </div>
   );
 }

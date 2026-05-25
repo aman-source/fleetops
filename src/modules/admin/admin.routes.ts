@@ -28,7 +28,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // POST /admin/workflows
-  app.post('/admin/workflows', { preHandler: [authorize('*')] }, async (request, reply) => {
+  app.post('/admin/workflows', { preHandler: [authorize('workflow:write')] }, async (request, reply) => {
     const input = z.object({
       name: z.string().min(1),
       key: z.string().min(1).regex(/^[A-Z0-9-]+$/, 'Key must be uppercase with hyphens'),
@@ -39,7 +39,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // PUT /admin/workflows/:id/draft
-  app.put('/admin/workflows/:id/draft', { preHandler: [authorize('*')] }, async (request, reply) => {
+  app.put('/admin/workflows/:id/draft', { preHandler: [authorize('workflow:write')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const draft = z.object({
       nodes: z.array(z.object({
@@ -60,7 +60,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // POST /admin/workflows/:id/publish
-  app.post('/admin/workflows/:id/publish', { preHandler: [authorize('*')] }, async (request, reply) => {
+  app.post('/admin/workflows/:id/publish', { preHandler: [authorize('workflow:write')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const version = await service.publishWorkflow(request.tenantId, id, request.user.sub);
     return sendSuccess(reply, version);
@@ -133,7 +133,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // POST /admin/retention/run — manually trigger retention (superadmin only)
-  app.post('/admin/retention/run', { preHandler: [authorize('*')] }, async (request, reply) => {
+  app.post('/admin/retention/run', { preHandler: [authorize('admin:write')] }, async (request, reply) => {
     const results = await runRetentionPolicies(request.server.log);
     return sendSuccess(reply, { results });
   });

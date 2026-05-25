@@ -28,7 +28,7 @@ import { createPanicIncident } from '../hse/hse.service.js';
 import { queueNotification } from '../notifications/notifications.service.js';
 
 // Device ID → vehicle ID mapping cache (refreshed from DB)
-const deviceVehicleMap = new Map<string, { vehicleId: string; orgId: string; deviceUuid: string }>();
+const deviceVehicleMap = new Map<string, { vehicleId: string; orgId: string; deviceUuid: string; plateNo: string; vehicleType: string }>();
 
 export async function initMqttSubscriber(app: FastifyInstance) {
   const client = getMqttClient();
@@ -118,6 +118,9 @@ async function handleTelemetry(
   // 1. Update Redis live state
   const liveState: VehicleLiveState = {
     ...point,
+    orgId: mapping.orgId,
+    plateNo: mapping.plateNo,
+    vehicleType: mapping.vehicleType,
     status: 'active',
     lastSeen: new Date().toISOString(),
   };
@@ -395,13 +398,27 @@ async function storeAndPublishEvent(
 
 async function refreshDeviceMap() {
   const rows = await db
-    .select({ id: devices.id, serialNo: devices.serialNo, vehicleId: devices.vehicleId, orgId: devices.orgId })
-    .from(devices);
+    .select({
+      id: devices.id,
+      serialNo: devices.serialNo,
+      vehicleId: devices.vehicleId,
+      orgId: devices.orgId,
+      plateNo: vehicles.plateNo,
+      vehicleType: vehicles.type,
+    })
+    .from(devices)
+    .leftJoin(vehicles, eq(devices.vehicleId, vehicles.id));
 
   deviceVehicleMap.clear();
   for (const row of rows) {
     if (row.vehicleId) {
-      deviceVehicleMap.set(row.serialNo, { vehicleId: row.vehicleId, orgId: row.orgId, deviceUuid: row.id });
+      deviceVehicleMap.set(row.serialNo, {
+        vehicleId: row.vehicleId,
+        orgId: row.orgId,
+        deviceUuid: row.id,
+        plateNo: row.plateNo ?? '',
+        vehicleType: row.vehicleType ?? 'light',
+      });
     }
   }
 }
